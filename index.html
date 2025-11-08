@@ -8953,7 +8953,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         if (!headerCell.value) {
             headerCell.value = "Screenshot-Report";
             headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } }; 
-            worksheet.getColumn("I").width = 100;
+            // worksheet.getColumn("I").width = 100;
         }
 
         // 5️⃣ Process each screenshot
@@ -9039,6 +9039,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
