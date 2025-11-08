@@ -8912,20 +8912,20 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine("Generating Excel report (using base file) with embedded screenshots...");
 
-    // 1️⃣ Load the base Excel file (must be in the same folder as HTML)
+    // 1️⃣ Load the base Excel file (must be deployed in the same folder)
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
-    const arrayBuffer = await response.arrayBuffer();
+    const arrayBuffer = await response.arrayBuffer(); // ✅ correct for browsers
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
 
-    // 2️⃣ Select the correct sheet (same as in your Qt code)
+    // 2️⃣ Select the correct sheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) throw new Error(`Sheet '${sheetName}' not found in Excel.`);
 
-    // 3️⃣ Parse all screenshots stored in memory
+    // 3️⃣ Parse screenshots stored in memory
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8944,53 +8944,54 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
 
-    // 4️⃣ Ensure header exists for Screenshot column (I)
+    // 4️⃣ Ensure Screenshot header exists (I1)
     const headerCell = worksheet.getCell("I1");
     if (!headerCell.value) {
       headerCell.value = "Screenshot-Report";
-      headerCell.font = { name: "Arial", bold: true, size: 14, color: { argb: "000000" } };
+      headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
+      worksheet.getColumn(9).width = 100;
     }
 
-    // 5️⃣ Loop through screenshots and insert images
+    // 5️⃣ Insert images by TestCaseID
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
       if (!base64) continue;
 
-      // Find the row that matches TestCaseID in column B
+      // Find row with this TestCaseID (Column B)
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
-        const cellValue = row.getCell(2).value;
-        if (cellValue && cellValue.toString().trim() === testCaseId) {
+        const cellVal = row.getCell(2).value;
+        if (cellVal && cellVal.toString().trim() === testCaseId) {
           targetRow = rowNumber;
         }
       });
 
-      // If test case ID not found, skip this image
+      // If not found, add at end
       if (!targetRow) {
-        logLine(`⚠️ TestCaseID ${testCaseId} not found in Excel; skipping image.`);
-        continue;
+        const newRow = worksheet.addRow([]);
+        targetRow = newRow.number;
+        worksheet.getCell(`B${targetRow}`).value = testCaseId;
       }
 
       try {
-        // Convert Base64 → binary
+        // Convert Base64 → buffer
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-
-        // Add image as JPEG (since LPOCIP sends /9j/ JPEG data)
         const imageId = workbook.addImage({
           buffer: imageBuffer,
           extension: "jpeg"
         });
 
-        // Match Qt dimensions
-        worksheet.getRow(targetRow).height = 250; // fixed row height like Qt
-        const scaledWidth = 750;                  // 100 * 7.5
-        const scaledHeight = Math.ceil(250 * 1.33); // ≈ 333
+        // Qt-style scaling
+        worksheet.getRow(targetRow).height = 250;
+        const scaledWidth = 750;
+        const scaledHeight = Math.ceil(250 * 1.33); // ≈333
 
-        // ✅ Place image perfectly in Column I (ExcelJS: col index 8, row index targetRow - 1)
+        // ✅ Corrected positioning
         worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 },
-          ext: { width: scaledWidth, height: scaledHeight }
+          tl: { col: 8, row: targetRow - 1 }, // Column I = 8 (0-based), Row = targetRow-1
+          ext: { width: scaledWidth, height: scaledHeight },
+          editAs: "oneCell" // ensures visible inside the cell
         });
 
         logLine(`✅ Embedded image for ${testCaseId} at row ${targetRow} (Column I).`);
@@ -8999,7 +9000,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
     }
 
-    // 6️⃣ Save final Excel file (no layout changes, just added images)
+    // 6️⃣ Save Excel with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
 
@@ -9009,7 +9010,6 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
-
     logLine("✅ Excel report generated successfully with screenshots.");
     showNotification("Excel report generated successfully!", "success");
 
@@ -9023,6 +9023,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
