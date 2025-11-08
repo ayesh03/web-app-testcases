@@ -8912,23 +8912,22 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine("Generating Excel report (using base file) with embedded screenshots...");
 
-    // Step 1: Load your existing Excel (must be in same deployed folder)
+    // 1️⃣ Load your existing Excel file from the same deployed folder
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
 
-    // Step 2: Load workbook
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
 
-    // ✅ Select your sheet (same as Qt version)
+    // 2️⃣ Select the correct sheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) {
       worksheet = workbook.addWorksheet(sheetName);
     }
 
-    // Step 3: Parse screenshot data from memory
+    // 3️⃣ Parse screenshots from memory
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8947,21 +8946,21 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
 
-    // Step 4: Ensure header for Screenshot column exists
+    // 4️⃣ Make sure Screenshot header exists
     const headerCell = worksheet.getCell("I1");
     if (!headerCell.value) {
       headerCell.value = "Screenshot-Report";
       headerCell.font = { name: "Arial", bold: true, size: 14, color: { argb: "000000" } };
-      worksheet.getColumn("I").width = 100; // Set column I width
+      worksheet.getColumn("I").width = 100;
     }
 
-    // Step 5: Loop through all screenshots
+    // 5️⃣ Process each screenshot
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
       if (!base64) continue;
 
-      // Find target row (searching column B)
+      // Find correct row where TestCaseID (column B) matches
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const cellVal = row.getCell(2).value; // Column B
@@ -8970,7 +8969,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         }
       });
 
-      // If not found, append new row
+      // If ID not found, append at end
       if (!targetRow) {
         const newRow = worksheet.addRow([]);
         targetRow = newRow.number;
@@ -8978,37 +8977,35 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
 
       try {
-        // Convert Base64 → buffer
+        // Base64 → buffer
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
         const imageId = workbook.addImage({
           buffer: imageBuffer,
           extension: "jpeg"
         });
 
-        // Scale image (similar to Qt: 100*7.5, 250*1.33)
-        const scaledWidth = 750;
-        const scaledHeight = 250;
+        // Same scale used in Qt
+        const scaledWidth = 750;  // ≈ 100 × 7.5
+        const scaledHeight = 250; // ≈ 250 × 1.0
+        worksheet.getRow(targetRow).height = 190; // fits visually
 
-        // Adjust row height to fit image
-        worksheet.getRow(targetRow).height = 190;
-
-        // Insert image into column I (index 8)
+        // Insert image in column I (index 8)
         worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 }, // Column I, proper row
+          tl: { col: 8, row: targetRow - 1 }, // I column
           ext: { width: scaledWidth, height: scaledHeight }
         });
 
-        logLine(`✅ Embedded image for TestCaseID: ${testCaseId} at row ${targetRow}`);
+        logLine(` Embedded image for ${testCaseId} at row ${targetRow}`);
       } catch (err) {
-        logLine(`⚠️ Failed to embed image for ${testCaseId}: ${err.message}`);
+        logLine(` Failed to embed image for ${testCaseId}: ${err.message}`);
       }
     }
 
-    // Step 6: Style header
+    // 6️⃣ Style header row
     worksheet.getRow(1).font = { bold: true, size: 14, name: "Arial" };
     worksheet.getRow(1).alignment = { horizontal: "center" };
 
-    // Step 7: Export Excel with timestamp
+    //  Download with timestamp
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -9017,10 +9014,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     });
-    saveAs(blob, fileName);
 
+    saveAs(blob, fileName);
     logLine(" Excel report generated successfully with screenshots.");
     showNotification("Excel report generated successfully!", "success");
+
   } catch (err) {
     logLine(` ERROR generating Excel report: ${err.message}`);
     showNotification("Failed to generate Excel report.", "error");
@@ -9028,8 +9026,10 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 });
 
 
+
   </script>
 
 </body>
 </html>
+
 
