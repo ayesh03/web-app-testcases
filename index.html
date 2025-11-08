@@ -8947,7 +8947,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     // Ensure Screenshot header exists
     const headerCell = worksheet.getCell("I1");
     if (!headerCell.value) {
-      headerCell.value = "Screenshot-Report";
+      headerCell.value = "Screenshot";
       headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
       worksheet.getColumn("I").width = 45;
     }
@@ -8980,7 +8980,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
         // Add visible image (default small size)
         worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 },  // Column I, same row
+          tl: {  row: targetRow - 1,col: 8 },  // Column I, same row
           ext: { width: 180, height: 100 },    // Small but visible
           editAs: "oneCell"
         });
@@ -9020,3 +9020,4 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
