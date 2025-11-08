@@ -8912,7 +8912,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine("Generating Excel report (using base file) with embedded screenshots...");
 
-    // 1. Load the base Excel file from the same folder
+    // Load the base Excel file
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
@@ -8920,14 +8920,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
 
-    // 2. Select or create the target worksheet
+    // Select or create the target sheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
-    if (!worksheet) {
-      worksheet = workbook.addWorksheet(sheetName);
-    }
+    if (!worksheet) worksheet = workbook.addWorksheet(sheetName);
 
-    // 3. Parse screenshots from memory
+    // Parse screenshots
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8946,30 +8944,30 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
 
-    // 4. Ensure Screenshot header exists
+    // Ensure Screenshot header exists
     const headerCell = worksheet.getCell("I1");
     if (!headerCell.value) {
       headerCell.value = "Screenshot-Report";
       headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
-      worksheet.getColumn("I").width = 40;
+      worksheet.getColumn("I").width = 45;
     }
 
-    // 5. Embed each screenshot (no manual size set)
+    // Embed screenshots
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
       if (!base64) continue;
 
-      // Find correct row where TestCaseID (column B) matches
+      // Find the correct row (Column B)
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
-        const cellVal = row.getCell(2).value; // Column B
-        if (cellVal && cellVal.toString().trim() === testCaseId) {
+        const val = row.getCell(2).value;
+        if (val && val.toString().trim() === testCaseId) {
           targetRow = rowNumber;
         }
       });
 
-      // If ID not found, append a new row
+      // If not found, append a new row
       if (!targetRow) {
         const newRow = worksheet.addRow([]);
         targetRow = newRow.number;
@@ -8977,33 +8975,30 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
 
       try {
-        // Convert Base64 → buffer
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-        const imageId = workbook.addImage({
-          buffer: imageBuffer,
-          extension: "jpeg"
-        });
+        const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
 
-        // Add image to the same row (Column I)
+        // Add visible image (default small size)
         worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 }, // Column I (index 8)
+          tl: { col: 8, row: targetRow - 1 },  // Column I, same row
+          ext: { width: 180, height: 100 },    // Small but visible
           editAs: "oneCell"
         });
 
-        logLine(`Embedded image for ${testCaseId} at row ${targetRow} (Column I).`);
+        logLine(`Embedded image for ${testCaseId} at row ${targetRow}`);
       } catch (err) {
         logLine(`Failed to embed image for ${testCaseId}: ${err.message}`);
       }
     }
 
-    // 6. Style header row
+    // Header style
     worksheet.getRow(1).font = { bold: true, size: 18, name: "Arial" };
     worksheet.getRow(1).alignment = { horizontal: "center" };
 
-    // 7. Save the Excel file with timestamp
+    // Save file
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `DMI_Test_Case_Report_${timestamp}.xlsx`;
+    const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
@@ -9011,7 +9006,6 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
-
     logLine("Excel report generated successfully with screenshots.");
     showNotification("Excel report generated successfully!", "success");
 
@@ -9021,16 +9015,8 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
   }
 });
 
+
   </script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
