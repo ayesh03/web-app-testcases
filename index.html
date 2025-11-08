@@ -8912,7 +8912,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine("Generating Excel report (using base file) with embedded screenshots...");
 
-    // 1. Load the base Excel file (same folder as your deployed HTML)
+    // 1. Load the base Excel file from the same folder
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
@@ -8920,14 +8920,14 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
 
-    // 2. Select the target worksheet
+    // 2. Select or create the target worksheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) {
       worksheet = workbook.addWorksheet(sheetName);
     }
 
-    // 3. Parse screenshots from in-memory log
+    // 3. Parse screenshots from memory
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8946,15 +8946,15 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
 
-    // 4. Ensure the Screenshot header exists
+    // 4. Ensure Screenshot header exists
     const headerCell = worksheet.getCell("I1");
     if (!headerCell.value) {
       headerCell.value = "Screenshot-Report";
       headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
-      worksheet.getColumn("I").width = 40; 
+      worksheet.getColumn("I").width = 40;
     }
 
-    // 5. Embed each screenshot
+    // 5. Embed each screenshot (no manual size set)
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
@@ -8984,13 +8984,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
           extension: "jpeg"
         });
 
-        // Default-size placement inside the cell
-        const imgWidth = 200;   
-        const imgHeight = 120;  
-
+        // Add image to the same row (Column I)
         worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 }, // Column I (index 8), same row
-          ext: { width: imgWidth, height: imgHeight },
+          tl: { col: 8, row: targetRow - 1 }, // Column I (index 8)
           editAs: "oneCell"
         });
 
@@ -9000,14 +8996,14 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
     }
 
-    // 6. Style header
+    // 6. Style header row
     worksheet.getRow(1).font = { bold: true, size: 18, name: "Arial" };
     worksheet.getRow(1).alignment = { horizontal: "center" };
 
-    // 7. Save the final Excel file with timestamp
+    // 7. Save the Excel file with timestamp
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
+    const fileName = `DMI_Test_Case_Report_${timestamp}.xlsx`;
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
@@ -9029,6 +9025,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
