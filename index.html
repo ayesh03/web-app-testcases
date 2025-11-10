@@ -8903,16 +8903,88 @@ function formatTestCasePacketWithModes(testCaseId, modesOperation) {
       }
     }
 
-document.getElementById("generateReportBtn").addEventListener("click", () => {
-  const link = document.createElement("a");
-  link.href = "./DMI-Testcases-Excelsheet.xlsx";
-  link.download = "DMI-Testcases-Excelsheet.xlsx";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+document.getElementById("generateReportBtn").addEventListener("click", async () => {
+  try {
+    if (!screenshotLogData || screenshotLogData.trim() === "") {
+      showNotification("No screenshot data available. Run tests first.", "warning");
+      return;
+    }
+
+    const response = await fetch("./DMI-Testcases-Excelsheet.xlsx", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
+    const arrayBuffer = await response.arrayBuffer();
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(arrayBuffer);
+
+    const worksheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
+    if (!worksheet) throw new Error("Worksheet not found in Excel file.");
+
+    if (!worksheet.columns) worksheet.columns = [];
+    const totalCols = Math.max(worksheet.columnCount || 0, 9);
+    while (worksheet.columns.length < totalCols) worksheet.columns.push({ width: 25 });
+    for (let i = 1; i <= totalCols; i++) {
+      const col = worksheet.getColumn(i);
+      if (!col || typeof col.width !== "number" || isNaN(col.width)) col.width = 25;
+    }
+
+    const entries = screenshotLogData
+      .split(/TestCaseID:/)
+      .slice(1)
+      .map(block => {
+        const [idPart, ...dataParts] = block.trim().split("\n");
+        return {
+          id: idPart.trim(),
+          base64: dataParts.join("").replace(/-+$/, "").trim()
+        };
+      });
+
+    for (const entry of entries) {
+      const testCaseId = entry.id;
+      const base64 = entry.base64;
+      if (!base64 || !/^KAVACH_DMI_0[2-9]/.test(testCaseId)) continue;
+
+      let targetRow = null;
+      worksheet.eachRow((row, rowNumber) => {
+        const val = row.getCell(2).value;
+        if (val && val.toString().trim() === testCaseId) targetRow = rowNumber;
+      });
+
+      if (!targetRow) continue;
+
+      const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
+
+      worksheet.addImage(imageId, {
+        tl: { col: 8, row: targetRow - 1 },
+        ext: { width: 300, height: 180 },
+        editAs: "oneCell"
+      });
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "DMI-Testcases-Excelsheet.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+
+    showNotification("Excel updated with screenshots and downloaded!", "success");
+  } catch (err) {
+    logLine(`ERROR: ${err.message}`);
+    showNotification("Failed to update Excel with images.", "error");
+  }
 });
+
 
   </script>
 
 </body>
 </html>
+
