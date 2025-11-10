@@ -8925,12 +8925,13 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found.`);
 
-    // ✅ Ensure all columns up to I (9) exist in model (to avoid undefined width error)
+    // ✅ Ensure all columns up to I (9) exist and have width
     for (let i = 1; i <= 9; i++) {
-      if (!worksheet.getColumn(i)) worksheet.getColumn(i).values = [];
+      const col = worksheet.getColumn(i);
+      if (!col.width || isNaN(col.width)) col.width = 25; // Prevents ExcelJS width error
     }
 
-    // Parse screenshot entries
+    // Parse screenshot entries from memory log
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8950,13 +8951,13 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Adding to Excel...`);
 
-    // Process each image
+    // Process each image entry
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
       if (!base64) continue;
 
-      // Locate target row where ID matches in column B
+      // Find target row by matching testCaseId in column B
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const val = row.getCell(2).value;
@@ -8971,10 +8972,16 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
 
       try {
+        // Convert base64 to binary buffer
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-        const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
 
-        // Insert image into column I (col 8 = index-based)
+        // Add image to workbook
+        const imageId = workbook.addImage({
+          buffer: imageBuffer,
+          extension: "jpeg"
+        });
+
+        // Insert image in column I (index 8, since 0-based)
         worksheet.addImage(imageId, {
           tl: { col: 8, row: targetRow - 1 },
           editAs: "oneCell"
@@ -8986,7 +8993,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
     }
 
-    // Save Excel file
+    // ✅ Save Excel file with timestamp
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -8997,6 +9004,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
+
     logLine("Excel report generated successfully with images (no shrink).");
     showNotification("Excel report generated successfully with images!", "success");
 
@@ -9005,9 +9013,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     showNotification("Failed to generate Excel report.", "error");
   }
 });
+
   </script>
 
 </body>
 </html>
+
 
 
