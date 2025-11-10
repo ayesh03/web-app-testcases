@@ -8943,24 +8943,21 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
 
-// Ensure Screenshot header exists safely
-const headerCell = worksheet.getCell("I1");
-if (!headerCell.value) {
-  headerCell.value = "Screenshot-image";
-  headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
-}
+    // Ensure Screenshot header exists
+    const headerCell = worksheet.getCell("I1");
+    if (!headerCell.value) {
+      headerCell.value = "Screenshot";
+      headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
+      worksheet.getColumn("I").width = 45;
+    }
 
-// Ensure column I is initialized (prevents 'width' undefined errors)
-worksheet.getColumn(9);
-
-
-    // Embed screenshots (no size specified)
+    // Embed screenshots (no size, just dump image)
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
       if (!base64) continue;
 
-      // Find the correct row (Column B)
+      // Find the correct row where TestCaseID matches (Column B)
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const val = row.getCell(2).value;
@@ -8969,7 +8966,7 @@ worksheet.getColumn(9);
         }
       });
 
-      // If not found, append a new row
+      // If not found, append new row
       if (!targetRow) {
         const newRow = worksheet.addRow([]);
         targetRow = newRow.number;
@@ -8977,20 +8974,20 @@ worksheet.getColumn(9);
       }
 
       try {
-        // Decode Base64 → buffer
+        // Convert Base64 → buffer
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
         const imageId = workbook.addImage({
           buffer: imageBuffer,
           extension: "jpeg"
         });
 
-        // Add image at column I (index 8) without any manual sizing
+        // Dump the image directly in Column I for that row
         worksheet.addImage(imageId, {
-          tl: { col: 9, row: targetRow - 1 }, // column I
-          editAs: "oneCell"
+          tl: { col: 8, row: targetRow - 1 }, // Column I (index 8)
+          editAs: "oneCell" // Let Excel adjust naturally
         });
 
-        logLine(`Embedded image for ${testCaseId} at row ${targetRow}`);
+        logLine(`Embedded image for ${testCaseId} at row ${targetRow} (Column I).`);
       } catch (err) {
         logLine(`Failed to embed image for ${testCaseId}: ${err.message}`);
       }
@@ -9000,7 +8997,7 @@ worksheet.getColumn(9);
     worksheet.getRow(1).font = { bold: true, size: 18, name: "Arial" };
     worksheet.getRow(1).alignment = { horizontal: "center" };
 
-    // Save file
+    // Save Excel file
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -9011,8 +9008,9 @@ worksheet.getColumn(9);
     });
 
     saveAs(blob, fileName);
-    logLine("Excel report generated successfully with screenshots.");
-    showNotification("Excel report generated successfully with screenshots!", "success");
+
+    logLine("Excel report generated successfully with embedded screenshots.");
+    showNotification("Excel report generated successfully!", "success");
 
   } catch (err) {
     logLine(`Error generating Excel report: ${err.message}`);
@@ -9024,6 +9022,7 @@ worksheet.getColumn(9);
 
 </body>
 </html>
+
 
 
 
