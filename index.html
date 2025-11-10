@@ -8906,40 +8906,39 @@ function formatTestCasePacketWithModes(testCaseId, modesOperation) {
     }
 document.getElementById("generateReportBtn").addEventListener("click", async () => {
   try {
-    if (!screenshotLogData || screenshotLogData.trim() === "") {
-      alert("No screenshot data available. Run tests first.");
+    const fileInput = document.getElementById("excelFileInput");
+    if (!fileInput.files.length) {
+      alert("Please select your Excel file first.");
       return;
     }
 
-    console.log("Starting image insertion into Excel...");
+    if (!screenshotLogData || screenshotLogData.trim() === "") {
+      alert("No screenshot data found!");
+      return;
+    }
 
-    const response = await fetch("./DMI-Testcases-Excelsheet.xlsx", { cache: "no-store" });
-    if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
-    const arrayBuffer = await response.arrayBuffer();
+    const file = fileInput.files[0];
+    const arrayBuffer = await file.arrayBuffer();
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
     const sheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
     if (!sheet) throw new Error("Worksheet not found.");
 
-    // Set consistent column widths and row heights
-    for (let i = 1; i <= 9; i++) sheet.getColumn(i).width = 25;
-    sheet.eachRow((row) => (row.height = 110));
-
-    // Parse screenshots
+    // Parse screenshot entries
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
-      .map((block) => {
+      .map(block => {
         const [idPart, ...dataParts] = block.trim().split("\n");
         const base64 = dataParts.join("").replace(/-+$/, "").trim();
         return { id: idPart.trim(), base64 };
       });
 
-    const imageWidth = 400;
-    const imageHeight = 280;
+    let added = 0;
     const targetCol = 9;
-    let addedCount = 0;
+    const imageWidth = 300;
+    const imageHeight = 280;
 
     for (const { id, base64 } of entries) {
       if (!id || !base64.startsWith("/9j/")) continue;
@@ -8951,45 +8950,41 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
           targetRow = rowNum;
         }
       });
-
       if (!targetRow) continue;
 
-      const imgBuffer = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-      const imgId = workbook.addImage({ buffer: imgBuffer, extension: "jpeg" });
+      const buffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      const imgId = workbook.addImage({ buffer, extension: "jpeg" });
 
       sheet.addImage(imgId, {
         tl: { col: targetCol - 1, row: targetRow - 1 },
-        ext: { width: imageWidth, height: imageHeight },
+        ext: { width: imageWidth, height: imageHeight }
       });
 
-      addedCount++;
-      console.log(`✅ Image added for ${id} at row ${targetRow}`);
+      added++;
+      console.log(` Added image for ${id} at row ${targetRow}`);
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     });
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "Updated_DMI-Testcases-Excelsheet.xlsx";
+    link.download = file.name; // same filename → looks like overwrite
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    console.log(`INFO: ${addedCount} images added successfully!`);
-    alert(`${addedCount} images added successfully!`);
+    alert(`${added} images added successfully!`);
   } catch (err) {
-    console.error("ERROR:", err.message);
-    alert("Failed to insert images: " + err.message);
+    console.error(err);
+    alert("Error: " + err.message);
   }
 });
+
 
   </script>
 
 </body>
 </html>
-
-
-
