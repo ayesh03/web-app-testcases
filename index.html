@@ -8943,22 +8943,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
 
-    // Ensure Screenshot header exists safely
-let headerCell = worksheet.getCell("I1");
+// Ensure Screenshot header exists safely
+const headerCell = worksheet.getCell("I1");
 if (!headerCell.value) {
   headerCell.value = "Screenshot-image";
   headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
-
-  //  Safely ensure column I exists before setting width
-  try {
-    const colI = worksheet.getColumn(9); // 9 = Column I (1-based index)
-    if (colI) colI.width = 45;           // Set only if defined
-  } catch (err) {
-    logLine(" Skipped setting column width (column not initialized yet).");
-  }
 }
-
-
 
     // Embed screenshots (no size specified)
     for (const entry of entries) {
@@ -9030,6 +9020,7 @@ if (!headerCell.value) {
 
 </body>
 </html>
+
 
 
 
