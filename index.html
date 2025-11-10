@@ -8909,7 +8909,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    logLine("Starting Excel report generation — no header changes, no resizing...");
+    logLine("Starting Excel report generation with auto row-fit...");
 
     // Load your existing Excel file
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
@@ -8920,12 +8920,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     await workbook.xlsx.load(arrayBuffer);
     logLine("Excel file loaded successfully.");
 
-    // ✅ Select your exact sheet
+    // Use your correct worksheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found.`);
 
-    // ✅ Ensure at least 9 columns exist with proper width (ExcelJS internal safety)
+    // Ensure all 9 columns exist and have defined widths
     if (!worksheet.columns) worksheet.columns = [];
     const totalCols = Math.max(worksheet.columnCount || 0, 9);
     while (worksheet.columns.length < totalCols) worksheet.columns.push({ width: 25 });
@@ -8937,7 +8937,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
     }
 
-    // ✅ Parse screenshots from memory
+    // Parse screenshots from memory
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8957,23 +8957,22 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Adding to Excel...`);
 
-    // ✅ Process screenshots
+    // Process each image
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
+
+      // Skip before 02.xx testcases
       if (!base64 || !/^KAVACH_DMI_0[2-9]/.test(testCaseId)) {
-        // Skip before KAVACH_DMI_02.xx
         logLine(`Skipping ${testCaseId} (not eligible).`);
         continue;
       }
 
-      // Find row by TestCase ID in column B
+      // Find target row in column B
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
-        const val = row.getCell(2).value; // Column B = index 2 (1-based)
-        if (val && val.toString().trim() === testCaseId) {
-          targetRow = rowNumber;
-        }
+        const val = row.getCell(2).value;
+        if (val && val.toString().trim() === testCaseId) targetRow = rowNumber;
       });
 
       if (!targetRow) {
@@ -8982,27 +8981,33 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
 
       try {
-        // Convert Base64 to binary buffer
+        // Convert Base64 → buffer
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
         const imageId = workbook.addImage({
           buffer: imageBuffer,
           extension: "jpeg"
         });
 
-        // ✅ Place in column I (index 8) — below header row
+        // Adjust row height for clean fitting
+        const imgHeight = 120; // pixels
+        const imgWidth = 240;  // pixels
+        const excelRowHeight = Math.round(imgHeight / 1.3); // conversion from px → Excel units
+        worksheet.getRow(targetRow).height = excelRowHeight;
+
+        // Place image exactly inside the cell (column I)
         worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 }, // Column I, adjust 1-based to 0-based row
-          ext: { width: 300, height: 180 },
+          tl: { col: 8, row: targetRow - 1 }, // column I (index 8)
+          ext: { width: imgWidth, height: imgHeight },
           editAs: "oneCell"
         });
 
-        logLine(`Image added for ${testCaseId} at row ${targetRow}, column I.`);
+        logLine(`Image added for ${testCaseId} at row ${targetRow}, column I (auto-fit).`);
       } catch (err) {
         logLine(`Failed to add image for ${testCaseId}: ${err.message}`);
       }
     }
 
-    // ✅ Save output
+    // Save output
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -9013,8 +9018,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
-    logLine("Excel report generated successfully with images (no shrink).");
-    showNotification("Excel report generated successfully with images!", "success");
+
+    logLine("Excel report generated successfully with auto row-fit images.");
+    showNotification("Excel report generated successfully with resized images!", "success");
 
   } catch (err) {
     logLine(`ERROR: ${err.message}`);
@@ -9022,10 +9028,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
   }
 });
 
+
   </script>
 
 </body>
 </html>
+
 
 
 
