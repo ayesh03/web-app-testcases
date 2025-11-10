@@ -8920,10 +8920,13 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     await workbook.xlsx.load(arrayBuffer);
     logLine("Excel file loaded successfully.");
 
-    // Select the sheet
+    // Select the correct worksheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found in Excel.`);
+
+    // ⚙️ Ensure column I is initialized internally (no layout change)
+    worksheet.getColumn("I");
 
     // Parse screenshot data
     const entries = screenshotLogData
@@ -8945,13 +8948,13 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Adding to Excel...`);
 
-    // Add images only, no header, no formatting
+    // Add images only — no header, no formatting
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
       if (!base64) continue;
 
-      // Find the correct row where testCaseId is in column B
+      // Find row for this TestCaseID (in Column B)
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const val = row.getCell(2).value;
@@ -8961,7 +8964,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       });
 
       if (!targetRow) {
-        logLine(`TestCaseID '${testCaseId}' not found — skipping.`);
+        logLine(`⚠️ TestCaseID '${testCaseId}' not found — skipping.`);
         continue;
       }
 
@@ -8969,7 +8972,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
         const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
 
-        // Just place image in Column I (index 8), no resizing, no header changes
+        // ✅ Safely insert the image in column I without resizing or formatting
         worksheet.addImage(imageId, {
           tl: { col: 8, row: targetRow - 1 },
           editAs: "oneCell"
@@ -8992,11 +8995,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
-    logLine("Excel report generated successfully with images (no size shrink).");
+    logLine(" Excel report generated successfully with images (no shrink).");
     showNotification("Excel report generated successfully with images!", "success");
 
   } catch (err) {
-    logLine(`ERROR: ${err.message}`);
+    logLine(` ERROR: ${err.message}`);
     showNotification("Failed to generate Excel report.", "error");
   }
 });
@@ -9006,6 +9009,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
