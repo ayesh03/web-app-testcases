@@ -8912,7 +8912,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine("Generating Excel report (using base file) with embedded screenshots...");
 
-    // 1️⃣ Load the base Excel file (same folder as deployed HTML)
+    // 1️⃣ Load your existing Excel file (must be in same deployed folder)
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
@@ -8920,7 +8920,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
 
-    // 2️⃣ Select sheet (create if missing)
+    // 2️⃣ Select the correct worksheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) worksheet = workbook.addWorksheet(sheetName);
@@ -8944,42 +8944,41 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
 
-    // 4️⃣ Restore layout (to prevent sheet from shrinking left)
-    worksheet.getColumn(1).width = 5;    // A
-    worksheet.getColumn(2).width = 25;   // B - TestCase ID
-    worksheet.getColumn(3).width = 20;   // C
-    worksheet.getColumn(4).width = 20;   // D
-    worksheet.getColumn(5).width = 20;   // E
-    worksheet.getColumn(6).width = 20;   // F
-    worksheet.getColumn(7).width = 20;   // G
-    worksheet.getColumn(8).width = 20;   // H
-    worksheet.getColumn(9).width = 100;  // I - Screenshot Column
-    worksheet.properties.defaultRowHeight = 20;
-    worksheet.views = [{ state: "frozen", ySplit: 1 }]; // Keep header fixed
+    // 4️⃣ Restore expected layout (your original Excel format)
+    worksheet.getColumn(1).width = 6;   // S.No
+    worksheet.getColumn(2).width = 23;  // IDS
+    worksheet.getColumn(3).width = 50;  // Test Scenarios
+    worksheet.getColumn(4).width = 45;  // Input Specifications
+    worksheet.getColumn(5).width = 45;  // Expected Output
+    worksheet.getColumn(6).width = 45;  // Observed Output
+    worksheet.getColumn(7).width = 25;  // Observed Output V1.0
+    worksheet.getColumn(8).width = 20;  // Type of Message
+    worksheet.getColumn(9).width = 90;  // Screenshot
+    worksheet.properties.defaultRowHeight = 25;
+    worksheet.views = [{ state: "frozen", ySplit: 1 }];
 
-    // 5️⃣ Ensure Screenshot header
+    // 5️⃣ Ensure Screenshot header exists
     const headerCell = worksheet.getCell("I1");
     if (!headerCell.value) {
       headerCell.value = "Screenshot";
-      headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
+      headerCell.font = { name: "Arial", bold: true, size: 14, color: { argb: "FF000000" } };
+      headerCell.alignment = { horizontal: "center" };
     }
 
-    // 6️⃣ Embed screenshots
+    // 6️⃣ Embed screenshots (as PNG, freely placed)
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
       if (!base64) continue;
 
-      // Find target row (match Column B with testCaseId)
+      // Find row where IDS matches (Column B)
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const val = row.getCell(2).value;
-        if (val && val.toString().trim() === testCaseId) {
-          targetRow = rowNumber;
-        }
+        if (val && val.toString().trim() === testCaseId) targetRow = rowNumber;
       });
 
-      // If not found, add new row
+      // If not found, append a new row
       if (!targetRow) {
         const newRow = worksheet.addRow([]);
         targetRow = newRow.number;
@@ -8987,40 +8986,35 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
 
       try {
-        // Clean Base64 → Uint8Array
-        const cleanBase64 = base64.replace(/^data:image\/jpeg;base64,/, "").trim();
+        // Convert Base64 to Uint8Array (as PNG)
+        const cleanBase64 = base64.replace(/^data:image\/(jpeg|png);base64,/, "").trim();
         const binary = atob(cleanBase64);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
-        logLine(`Base64 decoded successfully for ${testCaseId}, bytes=${bytes.length}`);
-
-        // Add image to workbook
+        // Add image as PNG (instead of JPEG)
         const imageId = workbook.addImage({
           buffer: bytes,
-          extension: "jpeg"
+          extension: "png"
         });
 
-        // Embed image in Column I (index 8, 0-based)
+        // Add image in Column I (no editAs → free placement)
         worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 }, // Correct top-left cell anchor
-          ext: { width: 180, height: 100 },
-          editAs: "oneCell"
+          tl: { col: 8, row: targetRow - 1 },
+          ext: { width: 180, height: 100 } // Default visible size
         });
 
-        worksheet.getRow(targetRow).height = 100;
-
-        logLine(`✅ Embedded image for ${testCaseId} at row ${targetRow}`);
+        logLine(`✅ Embedded PNG image for ${testCaseId} at row ${targetRow}`);
       } catch (err) {
         logLine(`❌ Failed to embed image for ${testCaseId}: ${err.message}`);
       }
     }
 
-    // 7️⃣ Header formatting
-    worksheet.getRow(1).font = { bold: true, size: 18, name: "Arial" };
+    // 7️⃣ Re-style header
+    worksheet.getRow(1).font = { bold: true, size: 14, name: "Arial" };
     worksheet.getRow(1).alignment = { horizontal: "center" };
 
-    // 8️⃣ Save and download
+    // 8️⃣ Save and download Excel with timestamp
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -9031,7 +9025,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
-    logLine("✅ Excel report generated successfully with screenshots.");
+    logLine("✅ Excel report generated successfully with PNG screenshots.");
     showNotification("Excel report generated successfully with screenshots!", "success");
 
   } catch (err) {
@@ -9040,11 +9034,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
   }
 });
 
-
   </script>
 
 </body>
 </html>
+
 
 
 
