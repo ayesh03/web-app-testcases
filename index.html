@@ -1931,8 +1931,7 @@
               <button id="clearButton" class="btn btn-clear" title="Clear Results">
                 <i class="fa-solid fa-eraser"></i> Clear Results
               </button>
-              <input type="file" id="excelFileInput" accept=".xlsx" />
-              <button id="generateReportBtn" class="btn btn-connect" disabled>Add Screenshots & Download</button>
+              <button id="generateReportBtn" class="btn btn-connect" disabled>Generate Report</button>
 
               <div class="checkbox-row">
                 <input type="checkbox" id="selectAllCheckbox">
@@ -8906,47 +8905,76 @@ function formatTestCasePacketWithModes(testCaseId, modesOperation) {
     }
 document.getElementById("generateReportBtn").addEventListener("click", async () => {
   try {
-    const fileInput = document.getElementById("excelFileInput");
-    if (!fileInput.files.length) {
-      showNotification("Please select your Excel file first.", "warning");
-      return;
-    }
-
     if (!screenshotLogData || screenshotLogData.trim() === "") {
-      showNotification("No screenshot data found!", "warning");
+      showNotification("No screenshot data available!", "warning");
       return;
     }
 
-    const file = fileInput.files[0];
-    const arrayBuffer = await file.arrayBuffer();
+    logLine("INFO: Creating new Excel workbook...");
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(arrayBuffer);
+    const sheet = workbook.addWorksheet("V1.4_DMI_Functional_testcase ");
 
-    const sheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
-    if (!sheet) throw new Error("Worksheet not found.");
+    // === STEP 1: Define Headers (based on your provided Excel structure) ===
+    const headers = [
+      "S.NO",
+      "TestCaseID",
+      "Test Case Name",
+      "Type",
+      "Description",
+      "Expected Result",
+      "Actual Result",
+      "Status",
+      "Screenshot"
+    ];
 
-    logLine("INFO: Excel file loaded successfully.");
+    sheet.addRow(headers);
+    sheet.getRow(1).font = { bold: true };
+    sheet.getRow(1).alignment = { horizontal: "center" };
+    sheet.getRow(1).height = 25;
 
-    // Parse screenshots from log data
+    // Set consistent column widths
+    sheet.columns = [
+      { width: 10 },
+      { width: 25 },
+      { width: 35 },
+      { width: 20 },
+      { width: 40 },
+      { width: 30 },
+      { width: 30 },
+      { width: 15 },
+      { width: 50 } // screenshot column
+    ];
+
+    logLine("INFO: Headers added successfully.");
+
+    // === STEP 2: Parse Screenshot Log ===
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
-      .map(block => {
+      .map((block, index) => {
         const [idPart, ...dataParts] = block.trim().split("\n");
         const base64 = dataParts.join("").replace(/-+$/, "").trim();
-        return { id: idPart.trim(), base64 };
+        return { sno: index + 1, id: idPart.trim(), base64 };
       });
 
-    const imageWidth = 500;  // width in px
-    const imageHeight = 300; // height in px
-    const targetCol = 9;     // column I
-    let addedCount = 0;
+    if (entries.length === 0) {
+      logLine("WARNING: No screenshots found in log data.");
+      showNotification("No screenshots found in memory.", "warning");
+      return;
+    }
 
-    for (const { id, base64 } of entries) {
+    logLine(`INFO: Found ${entries.length} screenshots to add.`);
+
+    // === STEP 3: Add Rows + Images ===
+    let addedCount = 0;
+    const imageWidth = 400;
+    const imageHeight = 280;
+
+    for (const { sno, id, base64 } of entries) {
       if (!id || !base64) continue;
 
-      // Detect format
+      // Detect image format
       let extension = "jpeg";
       if (base64.startsWith("iVBORw0KGgo")) extension = "png";
       else if (base64.startsWith("/9j/")) extension = "jpeg";
@@ -8955,59 +8983,39 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         continue;
       }
 
-      // Locate row by TestCaseID in column B
-      let targetRow = null;
-      sheet.eachRow((row, rowNum) => {
-        const val = row.getCell(2).value;
-        if (val && val.toString().trim().toUpperCase() === id.toUpperCase()) {
-          targetRow = rowNum;
-        }
-      });
-      if (!targetRow) {
-        logLine(`WARNING: TestCaseID '${id}' not found in Excel.`);
-        continue;
-      }
+      // Add Test Case Row
+      const row = sheet.addRow([sno, id, "", "", "", "", "", ""]);
+      row.height = 200; // Make row taller to fit image
 
-      // Decode Base64 to binary buffer
-      const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
-      const buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
-      if (!buffer || buffer.length < 5000) {
-        logLine(`ERROR: Invalid or too-small image buffer for ${id}`);
-        continue;
-      }
-
-      // Add image inside Excel
+      // Decode image data
       try {
+        const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
+
+        if (buffer.length < 5000) {
+          logLine(`ERROR: Image buffer too small for ${id}.`);
+          continue;
+        }
+
+        // Add image to workbook
         const imageId = workbook.addImage({ buffer, extension });
 
+        // Insert image in column I (index 9)
+        const rowNumber = row.number;
         sheet.addImage(imageId, {
-          tl: { col: targetCol - 1, row: targetRow - 1 },
+          tl: { col: 8, row: rowNumber - 1 },
           ext: { width: imageWidth, height: imageHeight },
-          editAs: "absolute",
+          editAs: "oneCell"
         });
 
-        // Adjust cell to make image visible
-        const rowObj = sheet.getRow(targetRow);
-        rowObj.height = 220;
-
-        logLine(`INFO: Image added for ${id} at row ${targetRow}, format ${extension}, size ${buffer.length} bytes.`);
-
-        // Also trigger a direct download of the image
-        const blobImage = new Blob([buffer], { type: `image/${extension}` });
-        const linkImg = document.createElement("a");
-        linkImg.href = URL.createObjectURL(blobImage);
-        linkImg.download = `${id}.${extension}`;
-        document.body.appendChild(linkImg);
-        linkImg.click();
-        document.body.removeChild(linkImg);
-
+        logLine(`INFO: Image added for ${id} (row ${rowNumber}).`);
         addedCount++;
       } catch (err) {
         logLine(`ERROR: Failed to insert image for ${id}: ${err.message}`);
       }
     }
 
-    // Write back Excel with image included
+    // === STEP 4: Download Excel File ===
     const bufferOut = await workbook.xlsx.writeBuffer();
     const blob = new Blob([bufferOut], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -9015,17 +9023,17 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = file.name; // same file name for overwrite behavior
+    link.download = "Auto_Generated_KAVACH_Report.xlsx";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    logLine(`INFO: ${addedCount} images added successfully!`);
-    showNotification(`${addedCount} screenshots added successfully!`, "success");
+    logLine(`INFO: Excel report created successfully with ${addedCount} images.`);
+    showNotification(`Excel generated successfully with ${addedCount} screenshots!`, "success");
 
   } catch (err) {
     logLine(`ERROR: ${err.message}`);
-    showNotification("Failed to add images: " + err.message, "error");
+    showNotification("Failed to generate Excel: " + err.message, "error");
   }
 });
 
@@ -9033,6 +9041,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
