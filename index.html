@@ -8912,78 +8912,72 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    // Load the original Excel file directly
     const response = await fetch("./DMI-Testcases-Excelsheet.xlsx", { cache: "no-store" });
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
 
-    // Load workbook using xlsx-populate
+    // Load workbook
     const workbook = await XlsxPopulate.fromDataAsync(arrayBuffer);
     const sheet = workbook.sheet("V1.4_DMI_Functional_testcase ");
-    if (!sheet) throw new Error("Sheet 'V1.4_DMI_Functional_testcase ' not found.");
+    if (!sheet) throw new Error("Worksheet not found.");
 
-    // Parse screenshot log
+    // Parse screenshot log data
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
       .map(block => {
         const [idPart, ...dataParts] = block.trim().split("\n");
+        const base64 = dataParts.join("").replace(/-+$/, "").trim();
         return {
           id: idPart.trim(),
-          base64: dataParts.join("").replace(/-+$/, "").trim()
+          base64
         };
       });
 
     let addedCount = 0;
 
     for (const entry of entries) {
-      const testCaseId = entry.id;
-      const base64 = entry.base64;
+      const { id, base64 } = entry;
+      if (!id || !base64.startsWith("/9j/")) continue; // ensure it's valid JPEG
 
-      if (!base64 || !/^KAVACH_DMI_0[2-9]/.test(testCaseId)) continue;
-
-      // Find row number for matching TestCaseID in column B (index 2)
+      // Find matching TestCaseID in column B
       const usedRange = sheet.usedRange();
       const values = usedRange.value();
-
       let targetRow = null;
+
       for (let r = 0; r < values.length; r++) {
-        if (values[r][1] && values[r][1].toString().trim() === testCaseId) {
-          targetRow = r + 1;
+        const cellVal = values[r][1]; // column B (index 1)
+        if (cellVal && cellVal.toString().trim() === id) {
+          targetRow = r + 1; // 1-based
           break;
         }
       }
 
-      if (!targetRow) continue;
+      if (!targetRow) {
+        logLine(`TestCaseID '${id}' not found in Excel — skipping.`);
+        continue;
+      }
 
       try {
-        // Convert base64 JPEG to Blob
-        const byteChars = atob(base64);
-        const byteNumbers = new Array(byteChars.length);
-        for (let i = 0; i < byteChars.length; i++) {
-          byteNumbers[i] = byteChars.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: "image/jpeg" });
-
-        // Add image into column I (8th index, Excel uses A=1)
-        await sheet.addImage(blob, {
-          name: testCaseId,
+        // Directly insert base64 image
+        sheet.addImage(`data:image/jpeg;base64,${base64}`, {
+          name: id,
           type: "image/jpeg",
           position: {
             type: "twoCellAnchor",
-            from: { col: 9, row: targetRow }, // column I = 9
+            from: { col: 9, row: targetRow },
             to: { col: 10, row: targetRow + 10 }
           }
         });
 
         addedCount++;
+        logLine(`✅ Image added successfully for TestCaseID '${id}' at row ${targetRow}, column I.`);
       } catch (err) {
-        console.error(`Failed to add image for ${testCaseId}:`, err);
+        logLine(`❌ Failed to add image for ${id}: ${err.message}`);
       }
     }
 
-    // Export the modified workbook
+    // Download modified file
     const output = await workbook.outputAsync();
     const blob = new Blob([output], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -8997,17 +8991,20 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
 
-    showNotification(`Excel updated with ${addedCount} screenshots successfully!`, "success");
+    logLine(`INFO: Excel updated with ${addedCount} screenshots successfully!`);
+    showNotification(`${addedCount} images added successfully!`, "success");
 
   } catch (err) {
-    console.error("Error updating Excel:", err);
+    logLine(`ERROR: ${err.message}`);
     showNotification("Failed to update Excel with images.", "error");
   }
 });
+
   </script>
 
 </body>
 </html>
+
 
 
 
