@@ -8910,7 +8910,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    logLine("Generating Excel report (using base file) with embedded screenshots...");
+    logLine("Generating Excel report (testing text placement instead of image)...");
 
     // Load the base Excel file
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
@@ -8942,7 +8942,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
+    logLine(`Found ${entries.length} test cases. Writing text placeholders...`);
 
     // Ensure Screenshot header exists
     const headerCell = worksheet.getCell("I1");
@@ -8952,13 +8952,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       worksheet.getColumn("I").width = 45;
     }
 
-    // Embed screenshots
+    // Instead of embedding images, write text in column I
     for (const entry of entries) {
       const testCaseId = entry.id;
-      const base64 = entry.base64;
-      if (!base64) continue;
+      if (!testCaseId) continue;
 
-      // Find the correct row (Column B)
+      // Find correct row (Column B)
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const val = row.getCell(2).value;
@@ -8967,38 +8966,39 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         }
       });
 
-      // If not found, append a new row
+      // If not found, append new row
       if (!targetRow) {
         const newRow = worksheet.addRow([]);
         targetRow = newRow.number;
         worksheet.getCell(`B${targetRow}`).value = testCaseId;
       }
 
-      try {
-        const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-        const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
+      // ❌ Commented out image embedding
+      /*
+      const imageBuffer = Uint8Array.from(atob(entry.base64), c => c.charCodeAt(0));
+      const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
+      worksheet.addImage(imageId, {
+        tl: { row: targetRow - 1, col: 8 },
+        ext: { width: 180, height: 100 },
+        editAs: "oneCell"
+      });
+      */
 
-        // Add visible image (default small size)
-        worksheet.addImage(imageId, {
-          tl: {  row: targetRow - 1,col: 8 },  // Column I, same row
-          ext: { width: 180, height: 100 },    // Small but visible
-          editAs: "oneCell"
-        });
+      // ✅ Write placeholder text in Column I
+      worksheet.getCell(`I${targetRow}`).value = `Image placeholder for ${testCaseId}`;
+      worksheet.getCell(`I${targetRow}`).alignment = { wrapText: true, vertical: "middle" };
 
-        logLine(`Embedded image for ${testCaseId} at row ${targetRow}`);
-      } catch (err) {
-        logLine(`Failed to embed image for ${testCaseId}: ${err.message}`);
-      }
+      logLine(`Wrote placeholder text for ${testCaseId} at row ${targetRow}`);
     }
 
-    // Header style
+    // Header styling
     worksheet.getRow(1).font = { bold: true, size: 18, name: "Arial" };
     worksheet.getRow(1).alignment = { horizontal: "center" };
 
     // Save file
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
+    const fileName = `LPOCIP_Test_Report_TEXT_${timestamp}.xlsx`;
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
@@ -9006,8 +9006,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
-    logLine("Excel report generated successfully with screenshots.");
-    showNotification("Excel report generated successfully!", "success");
+
+    logLine("Excel report generated successfully (text test).");
+    showNotification("Excel report generated successfully with text placeholders!", "success");
 
   } catch (err) {
     logLine(`Error generating Excel report: ${err.message}`);
@@ -9015,9 +9016,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
   }
 });
 
-
   </script>
 
 </body>
 </html>
+
 
