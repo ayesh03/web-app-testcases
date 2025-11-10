@@ -8949,15 +8949,15 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
         // 4️⃣ Restore layout and set OPTIMIZED Column Widths
         // Widths are in Excel characters (approx. 10 characters = 75 pixels)
-        worksheet.getColumn(1).width = 5;      // A - S.No
-        worksheet.getColumn(2).width = 25;     // B - IDS / TestCase ID
-        worksheet.getColumn(3).width = 60;     // C - Test Scenarios
-        worksheet.getColumn(4).width = 60;     // D - Input Specifications
-        worksheet.getColumn(5).width = 60;     // E - Expected Output / Values
-        worksheet.getColumn(6).width = 60;     // F - Observed Output/Values (V1.4)
-        worksheet.getColumn(7).width = 15;     // G - Observed Output/Values V1.0 (Status)
-        worksheet.getColumn(8).width = 15;     // H - TYPE of Message
-        worksheet.getColumn(9).width = 100;    // I - Screenshot Column (Wide enough for image)
+        worksheet.getColumn(1).height = 5;      // A - S.No
+        worksheet.getColumn(2).height = 25;     // B - IDS / TestCase ID
+        worksheet.getColumn(3).height = 60;     // C - Test Scenarios
+        worksheet.getColumn(4).height = 60;     // D - Input Specifications
+        worksheet.getColumn(5).height = 60;     // E - Expected Output / Values
+        worksheet.getColumn(6).height = 60;     // F - Observed Output/Values (V1.4)
+        worksheet.getColumn(7).height = 15;     // G - Observed Output/Values V1.0 (Status)
+        worksheet.getColumn(8).height = 15;     // H - TYPE of Message
+        worksheet.getColumn(9).height = 100;    // I - Screenshot Column (Wide enough for image)
         
         // Add text wrapping for multi-line content columns
         for (let i = 3; i <= 6; i++) { // Columns C through F
@@ -9029,7 +9029,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
                 // tl row index is 0-based, so targetRowNumber - 1 is correct for the top of the row.
                 worksheet.addImage(imageId, {
                     tl: { col: 8, row: targetRowNumber - 1 }, // Column I (index 8), Row anchor
-                    ext: { width: 180, height: 100 },       // Image size
+                    ext: { width: 18, height: 10 },       // Image size
                     editAs: "oneCell"                       // Image moves with cell
                 });
 
