@@ -8924,7 +8924,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     // Generate a unique filename with timestamp
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
+    const fileName = `LPOCIP_Test_Report_${timestamp}.xls`;
 
     // Write workbook to buffer
     const buffer = await workbook.xlsx.writeBuffer();
@@ -8955,6 +8955,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
