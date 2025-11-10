@@ -8920,12 +8920,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     await workbook.xlsx.load(arrayBuffer);
     logLine("Excel file loaded successfully.");
 
-    // ✅ Use your real worksheet
+    //  Use your real worksheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found.`);
 
-    // ✅ Parse screenshot entries
+    //  Parse screenshot entries
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8945,7 +8945,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Adding to Excel...`);
 
-    // ✅ Process screenshots (no size/width modification)
+    //  Process screenshots (no size/width modification)
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
@@ -8976,7 +8976,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
           extension: "jpeg"
         });
 
-        // ✅ Just insert the image in column I as-is
+        //  Just insert the image in column I as-is
         worksheet.addImage(imageId, {
           tl: { col: 8, row: targetRow - 1 }, // column I
           editAs: "oneCell"
@@ -8988,7 +8988,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
     }
 
-    // ✅ Save new Excel file
+    //  Save new Excel file
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -9013,3 +9013,4 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
