@@ -8975,7 +8975,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
     
-    logLine(`Excel updated with screenshots and downloaded!, success`);
+    logLine("Excel updated with screenshots and downloaded!, success");
     showNotification("Excel updated with screenshots and downloaded!", "success");
   } catch (err) {
     logLine(`ERROR: ${err.message}`);
@@ -8986,5 +8986,6 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
