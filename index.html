@@ -8934,7 +8934,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     const imageWidth = 40;
     const imageHeight = 20;
-    const targetCol = 12;
+    const targetCol = 2;
     let addedCount = 0;
 
     for (const { id, base64 } of entries) {
@@ -8977,7 +8977,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       // Add image into Excel
       const imageId = workbook.addImage({ buffer, extension });
       sheet.addImage(imageId, {
-        tl: { col: targetCol - 1, row: targetRow},
+        tl: { col: targetCol - 1, row: targetRow-1},
         ext: { width: imageWidth, height: imageHeight }
       });
 
@@ -9026,10 +9026,3 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
-
-
-
-
-
-
-
