@@ -8927,8 +8927,8 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     if (!sheet) throw new Error("Worksheet not found.");
 
     logLine("INFO: Excel file loaded successfully.");
-    
-    // Parse screenshot log entries
+
+    // Parse screenshots from log data
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8938,33 +8938,24 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         return { id: idPart.trim(), base64 };
       });
 
-    if (entries.length === 0) {
-      logLine("WARNING: No screenshots found in log data.");
-      showNotification("No screenshots found.", "warning");
-      return;
-    }
-
-    const imageWidth = 400;  // px
-    const imageHeight = 280; // px
-    const targetCol = 9;     // Column I
+    const imageWidth = 500;  // width in px
+    const imageHeight = 300; // height in px
+    const targetCol = 9;     // column I
     let addedCount = 0;
 
     for (const { id, base64 } of entries) {
-      if (!id || !base64) {
-        logLine(`WARNING: Invalid entry skipped.`);
-        continue;
-      }
+      if (!id || !base64) continue;
 
       // Detect format
       let extension = "jpeg";
       if (base64.startsWith("iVBORw0KGgo")) extension = "png";
       else if (base64.startsWith("/9j/")) extension = "jpeg";
       else {
-        logLine(`WARNING: Unknown image format for ${id} — skipped.`);
+        logLine(`WARNING: Unknown image format for ${id}, skipped.`);
         continue;
       }
 
-      // Find Excel row for this TestCaseID (column B)
+      // Locate row by TestCaseID in column B
       let targetRow = null;
       sheet.eachRow((row, rowNum) => {
         const val = row.getCell(2).value;
@@ -8977,38 +8968,46 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         continue;
       }
 
-      // Decode Base64 to binary
-      let buffer;
-      try {
-        const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
-        buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
-      } catch (err) {
-        logLine(`ERROR: Failed to decode Base64 for ${id}: ${err.message}`);
+      // Decode Base64 to binary buffer
+      const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
+      if (!buffer || buffer.length < 5000) {
+        logLine(`ERROR: Invalid or too-small image buffer for ${id}`);
         continue;
       }
 
-      if (!buffer || buffer.length < 100) {
-        logLine(`ERROR: Invalid image data for ${id} (buffer too small).`);
-        continue;
-      }
-
-      // Add image
+      // Add image inside Excel
       try {
         const imageId = workbook.addImage({ buffer, extension });
 
         sheet.addImage(imageId, {
           tl: { col: targetCol - 1, row: targetRow - 1 },
           ext: { width: imageWidth, height: imageHeight },
+          editAs: "absolute",
         });
 
-        addedCount++;
+        // Adjust cell to make image visible
+        const rowObj = sheet.getRow(targetRow);
+        rowObj.height = 220;
+
         logLine(`INFO: Image added for ${id} at row ${targetRow}, format ${extension}, size ${buffer.length} bytes.`);
+
+        // Also trigger a direct download of the image
+        const blobImage = new Blob([buffer], { type: `image/${extension}` });
+        const linkImg = document.createElement("a");
+        linkImg.href = URL.createObjectURL(blobImage);
+        linkImg.download = `${id}.${extension}`;
+        document.body.appendChild(linkImg);
+        linkImg.click();
+        document.body.removeChild(linkImg);
+
+        addedCount++;
       } catch (err) {
         logLine(`ERROR: Failed to insert image for ${id}: ${err.message}`);
       }
     }
 
-    // Write file
+    // Write back Excel with image included
     const bufferOut = await workbook.xlsx.writeBuffer();
     const blob = new Blob([bufferOut], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -9016,13 +9015,14 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = file.name; // same name → looks like overwrite
+    link.download = file.name; // same file name for overwrite behavior
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
     logLine(`INFO: ${addedCount} images added successfully!`);
     showNotification(`${addedCount} screenshots added successfully!`, "success");
+
   } catch (err) {
     logLine(`ERROR: ${err.message}`);
     showNotification("Failed to add images: " + err.message, "error");
@@ -9033,5 +9033,6 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
