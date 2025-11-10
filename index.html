@@ -8911,132 +8911,27 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine("Starting Excel report generation — no header changes, no resizing...");
 
-    // Load your existing Excel file
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
-    if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
-    const arrayBuffer = await response.arrayBuffer();
+if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
 
-     const workbook = new ExcelJS.Workbook();
-     const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
+const arrayBuffer = await response.arrayBuffer();
+const workbook = new ExcelJS.Workbook();
+await workbook.xlsx.load(arrayBuffer);  // ✅ Load the Excel data
 
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    });
+const now = new Date();
+const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
 
-//     saveAs(blob, fileName);
-      saveAs(blob, workbook);
-//     await workbook.xlsx.load(arrayBuffer);
-//     logLine("Excel file loaded successfully.");
-
-//     //  Select your exact sheet
-//     const sheetName = "V1.4_DMI_Functional_testcase ";
-//     let worksheet = workbook.getWorksheet(sheetName);
-//     if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found.`);
-
-//     //  Ensure at least 9 columns exist with proper width (ExcelJS internal safety)
-//     if (!worksheet.columns) worksheet.columns = [];
-//     const totalCols = Math.max(worksheet.columnCount || 0, 9);
-//     // while (worksheet.columns.length < totalCols) worksheet.columns.push({ width: 25 });
-
-//     for (let i = 1; i <= totalCols; i++) {
-//       const col = worksheet.getColumn(i);
-//       if (!col || typeof col.width !== "number" || isNaN(col.width)) {
-//         // worksheet.getColumn(i).width = 325;
-//       }
-//     }
-
-//     //  Parse screenshots from memory
-//     const entries = screenshotLogData
-//       .split(/TestCaseID:/)
-//       .slice(1)
-//       .map(block => {
-//         const [idPart, ...dataParts] = block.trim().split("\n");
-//         return {
-//           id: idPart.trim(),
-//           base64: dataParts.join("").replace(/-+$/, "").trim()
-//         };
-//       });
-
-//     if (entries.length === 0) {
-//       showNotification("No screenshots found in memory.", "warning");
-//       logLine("No screenshots found in memory.");
-//       return;
-//     }
-
-//     logLine(`Found ${entries.length} screenshots. Adding to Excel...`);
-
-//     //  Process screenshots
-//     for (const entry of entries) {
-//       const testCaseId = entry.id;
-//       const base64 = entry.base64;
-//       if (!base64 || !/^KAVACH_DMI_0[2-9]/.test(testCaseId)) {
-//         // Skip before KAVACH_DMI_02.xx
-//         logLine(`Skipping ${testCaseId} (not eligible).`);
-//         continue;
-//       }
-
-//       // Find row by TestCase ID in column B
-//       let targetRow = null;
-//       worksheet.eachRow((row, rowNumber) => {
-//         const val = row.getCell(2).value; // Column B = index 2 (1-based)
-//         if (val && val.toString().trim() === testCaseId) {
-//           targetRow = rowNumber;
-//         }
-//       });
-
-//       if (!targetRow) {
-//         logLine(`TestCaseID '${testCaseId}' not found — skipping.`);
-//         continue;
-//       }
-
-//       try {
-//         // Convert Base64 to binary buffer
-//         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-//         const imageId = workbook.addImage({
-//           buffer: imageBuffer,
-//           extension: "jpeg"
-//         });
-
-//         //  Place in column I (index 8) — below header row
-//         // worksheet.addImage(imageId, {
-//         //   tl: { col: 8, row: targetRow - 1 }, // Column I, adjust 1-based to 0-based row
-//         //   ext: { width: 300, height: 180 },
-//         //   editAs: "oneCell"
-//         // });
-
-//         logLine(`Image added for ${testCaseId} at row ${targetRow}, column I.`);
-//       } catch (err) {
-//         logLine(`Failed to add image for ${testCaseId}: ${err.message}`);
-//       }
-//     }
-
-//     //  Save output
-//     const now = new Date();
-//     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-//     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
-
-//     const buffer = await workbook.xlsx.writeBuffer();
-//     const blob = new Blob([buffer], {
-//       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-//     });
-
-//     saveAs(blob, fileName);
-//     logLine("Excel report generated successfully with images (no shrink).");
-//     showNotification("Excel report generated successfully with images!", "success");
-
-//   } catch (err) {
-//     logLine(`ERROR: ${err.message}`);
-//     showNotification("Failed to generate Excel report.", "error");
-//   }
-// });
+const buffer = await workbook.xlsx.writeBuffer();
+const blob = new Blob([buffer], {
+  type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+});
 
   </script>
 
 </body>
 </html>
+
 
 
 
