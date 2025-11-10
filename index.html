@@ -8933,7 +8933,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     for (let i = 1; i <= totalCols; i++) {
       const col = worksheet.getColumn(i);
       if (!col || typeof col.width !== "number" || isNaN(col.width)) {
-        worksheet.getColumn(i).width = 25;
+        worksheet.getColumn(i).width = 325;
       }
     }
 
@@ -9026,6 +9026,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
