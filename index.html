@@ -8946,9 +8946,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     // Ensure Screenshot header exists
     const headerCell = worksheet.getCell("I1");
     if (!headerCell.value) {
-      headerCell.value = "Screenshot-image";
+      headerCell.value = "Screenshot";
       headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
-      //worksheet.getColumn("I").width = 45;
+      worksheet.getColumn("I").width = 45;
     }
 
     // Embed screenshots (no size, just dump image)
@@ -9022,11 +9022,4 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
-
-
-
-
-
-
-
 
