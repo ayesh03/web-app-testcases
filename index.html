@@ -8911,26 +8911,51 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine("Starting Excel report generation — no header changes, no resizing...");
 
+    // Fetch the Excel file
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
-if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
+    if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
 
-const arrayBuffer = await response.arrayBuffer();
-const workbook = new ExcelJS.Workbook();
-await workbook.xlsx.load(arrayBuffer);  // ✅ Load the Excel data
+    const arrayBuffer = await response.arrayBuffer();
 
-const now = new Date();
-const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
+    // Load the workbook
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(arrayBuffer);
 
-const buffer = await workbook.xlsx.writeBuffer();
-const blob = new Blob([buffer], {
-  type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    // Generate a unique filename with timestamp
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
+
+    // Write workbook to buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    // Create a blob for download
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+
+    // Create a temporary link to trigger download
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+
+    // Clean up
+    URL.revokeObjectURL(link.href);
+
+    logLine(`✅ Excel file copied and downloaded as ${fileName}`);
+    showNotification(`Excel report downloaded: ${fileName}`, "success");
+  } catch (error) {
+    console.error("Error generating report:", error);
+    showNotification(`Error: ${error.message}`, "error");
+  }
 });
 
   </script>
 
 </body>
 </html>
+
 
 
 
