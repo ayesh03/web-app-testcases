@@ -8928,12 +8928,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     //  Ensure at least 9 columns exist with proper width (ExcelJS internal safety)
     if (!worksheet.columns) worksheet.columns = [];
     const totalCols = Math.max(worksheet.columnCount || 0, 9);
-    while (worksheet.columns.length < totalCols) worksheet.columns.push({ width: 25 });
+    // while (worksheet.columns.length < totalCols) worksheet.columns.push({ width: 25 });
 
     for (let i = 1; i <= totalCols; i++) {
       const col = worksheet.getColumn(i);
       if (!col || typeof col.width !== "number" || isNaN(col.width)) {
-        worksheet.getColumn(i).width = 325;
+        // worksheet.getColumn(i).width = 325;
       }
     }
 
@@ -8990,11 +8990,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         });
 
         //  Place in column I (index 8) — below header row
-        worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 }, // Column I, adjust 1-based to 0-based row
-          ext: { width: 300, height: 180 },
-          editAs: "oneCell"
-        });
+        // worksheet.addImage(imageId, {
+        //   tl: { col: 8, row: targetRow - 1 }, // Column I, adjust 1-based to 0-based row
+        //   ext: { width: 300, height: 180 },
+        //   editAs: "oneCell"
+        // });
 
         logLine(`Image added for ${testCaseId} at row ${targetRow}, column I.`);
       } catch (err) {
@@ -9026,6 +9026,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
