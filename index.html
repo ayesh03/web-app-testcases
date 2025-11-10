@@ -8910,9 +8910,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    logLine("Generating Excel report (testing text placement instead of image)...");
+    logLine("Generating Excel report (using base file) with embedded screenshots...");
 
-    // Load the base Excel file
+    // Load the base Excel file from same deployed folder
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
@@ -8925,7 +8925,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) worksheet = workbook.addWorksheet(sheetName);
 
-    // Parse screenshots
+    // Parse all screenshots stored in memory
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8942,7 +8942,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    logLine(`Found ${entries.length} test cases. Writing text placeholders...`);
+    logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
 
     // Ensure Screenshot header exists
     const headerCell = worksheet.getCell("I1");
@@ -8952,12 +8952,13 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       worksheet.getColumn("I").width = 45;
     }
 
-    // Instead of embedding images, write text in column I
+    // Embed screenshots (Column I)
     for (const entry of entries) {
       const testCaseId = entry.id;
-      if (!testCaseId) continue;
+      const base64 = entry.base64;
+      if (!base64) continue;
 
-      // Find correct row (Column B)
+      // Find row in Column B where ID matches
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const val = row.getCell(2).value;
@@ -8966,39 +8967,55 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         }
       });
 
-      // If not found, append new row
+      // If not found, add a new row at the end
       if (!targetRow) {
         const newRow = worksheet.addRow([]);
         targetRow = newRow.number;
         worksheet.getCell(`B${targetRow}`).value = testCaseId;
       }
 
-      // Commented out image embedding
-      /*
-      const imageBuffer = Uint8Array.from(atob(entry.base64), c => c.charCodeAt(0));
-      const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
-      worksheet.addImage(imageId, {
-        tl: { row: targetRow - 1, col: 8 },
-        ext: { width: 180, height: 100 },
-        editAs: "oneCell"
-      });
-      */
+      try {
+        // Clean Base64 string
+        const cleanBase64 = base64.replace(/^data:image\/jpeg;base64,/, "").trim();
 
-      // Write placeholder text in Column I
-      worksheet.getCell(`I${targetRow}`).value = `Image placeholder for ${testCaseId}`;
-      worksheet.getCell(`I${targetRow}`).alignment = { wrapText: true, vertical: "middle" };
+        // Convert Base64 → binary Uint8Array
+        const binary = atob(cleanBase64);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
 
-      logLine(`Wrote placeholder text for ${testCaseId} at row ${targetRow}`);
+        logLine(`Base64 decoded successfully for ${testCaseId}, length=${len}`);
+
+        // Add image to workbook
+        const imageId = workbook.addImage({
+          buffer: bytes,
+          extension: "jpeg"
+        });
+
+        // Insert image into Column I (index 8, since 0-based)
+        worksheet.addImage(imageId, {
+          tl: { col: 8, row: targetRow - 1 }, // Row is 1-based → shift by -1
+          ext: { width: 180, height: 100 },   // Keep small for visibility
+          editAs: "oneCell"
+        });
+
+        // Optional: set row height
+        worksheet.getRow(targetRow).height = 100;
+
+        logLine(`Embedded image for ${testCaseId} at row ${targetRow}`);
+      } catch (err) {
+        logLine(`Failed to embed image for ${testCaseId}: ${err.message}`);
+      }
     }
 
     // Header styling
     worksheet.getRow(1).font = { bold: true, size: 18, name: "Arial" };
     worksheet.getRow(1).alignment = { horizontal: "center" };
 
-    // Save file
+    // Save Excel with timestamp
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `LPOCIP_Test_Report_TEXT_${timestamp}.xlsx`;
+    const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
@@ -9007,8 +9024,8 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     saveAs(blob, fileName);
 
-    logLine("Excel report generated successfully (text test).");
-    showNotification("Excel report generated successfully with text placeholders!", "success");
+    logLine("Excel report generated successfully with screenshots.");
+    showNotification("Excel report generated successfully with screenshots!", "success");
 
   } catch (err) {
     logLine(`Error generating Excel report: ${err.message}`);
@@ -9020,6 +9037,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
