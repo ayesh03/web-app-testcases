@@ -8950,7 +8950,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     for (const entry of entries) {
       const { id, base64 } = entry;
       if (!id || !base64.startsWith("/9j/")) {
-        console.log(`Skipping ${id} — invalid or empty Base64.`);
+        console.log(`⚠️ Skipping ${id} — invalid or empty Base64.`);
         continue;
       }
 
@@ -8964,7 +8964,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       });
 
       if (!targetRow) {
-        console.log(`TestCaseID '${id}' not found in Excel.`);
+        console.log(`❌ TestCaseID '${id}' not found in Excel.`);
         continue;
       }
 
@@ -8985,7 +8985,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       });
 
       addedCount++;
-      console.log(`Image added for '${id}' at row ${targetRow}, column I.`);
+      console.log(`✅ Image added for '${id}' at row ${targetRow}, column I.`);
     }
 
     // Save updated Excel
@@ -9014,4 +9014,5 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
