@@ -8932,9 +8932,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         return { id: idPart.trim(), base64 };
       });
 
-    const imageWidth = 400;
-    const imageHeight = 280;
-    const targetCol = 9;
+    const imageWidth = 40;
+    const imageHeight = 20;
+    const targetCol = 12;
     let addedCount = 0;
 
     for (const { id, base64 } of entries) {
@@ -8977,7 +8977,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       // Add image into Excel
       const imageId = workbook.addImage({ buffer, extension });
       sheet.addImage(imageId, {
-        tl: { col: targetCol - 1, row: targetRow - 1 },
+        tl: { col: targetCol - 1, row: targetRow},
         ext: { width: imageWidth, height: imageHeight }
       });
 
@@ -9026,6 +9026,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
