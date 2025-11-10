@@ -8902,68 +8902,17 @@ function formatTestCasePacketWithModes(testCaseId, modesOperation) {
         logLine(`ERROR downloading log file: ${error.message}`);
       }
     }
-document.getElementById("generateReportBtn").addEventListener("click", async () => {
-  try {
-    if (!screenshotLogData || screenshotLogData.trim() === "") {
-      showNotification("No screenshot data available. Run tests first.", "warning");
-      return;
-    }
 
-    logLine("Starting Excel report generation — no header changes, no resizing...");
-
-    // Fetch the Excel file
-    const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
-    if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
-
-    const arrayBuffer = await response.arrayBuffer();
-
-    // Load the workbook
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(arrayBuffer);
-
-    // Generate a unique filename with timestamp
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `LPOCIP_Test_Report_${timestamp}.xls`;
-
-    // Write workbook to buffer
-    const buffer = await workbook.xlsx.writeBuffer();
-
-    // Create a blob for download
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    });
-
-    // Create a temporary link to trigger download
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = fileName;
-    link.click();
-
-    // Clean up
-    URL.revokeObjectURL(link.href);
-
-    logLine(`✅ Excel file copied and downloaded as ${fileName}`);
-    showNotification(`Excel report downloaded: ${fileName}`, "success");
-  } catch (error) {
-    console.error("Error generating report:", error);
-    showNotification(`Error: ${error.message}`, "error");
-  }
+document.getElementById("generateReportBtn").addEventListener("click", () => {
+  const link = document.createElement("a");
+  link.href = "./DMI-Testcases-Excelsheet.xlsx";
+  link.download = "DMI-Testcases-Excelsheet.xlsx";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 });
 
   </script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
