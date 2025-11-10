@@ -8950,6 +8950,10 @@ if (!headerCell.value) {
   headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
 }
 
+// Ensure column I is initialized (prevents 'width' undefined errors)
+worksheet.getColumn(9);
+
+
     // Embed screenshots (no size specified)
     for (const entry of entries) {
       const testCaseId = entry.id;
@@ -8982,7 +8986,7 @@ if (!headerCell.value) {
 
         // Add image at column I (index 8) without any manual sizing
         worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 }, // column I
+          tl: { col: 9, row: targetRow - 1 }, // column I
           editAs: "oneCell"
         });
 
@@ -9020,6 +9024,7 @@ if (!headerCell.value) {
 
 </body>
 </html>
+
 
 
 
