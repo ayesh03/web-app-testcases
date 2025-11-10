@@ -8904,140 +8904,176 @@ function formatTestCasePacketWithModes(testCaseId, modesOperation) {
     }
 
 document.getElementById("generateReportBtn").addEventListener("click", async () => {
-  try {
-    if (!screenshotLogData || screenshotLogData.trim() === "") {
-      showNotification("No screenshot data available. Run tests first.", "warning");
-      return;
-    }
+    try {
+        if (!screenshotLogData || screenshotLogData.trim() === "") {
+            showNotification("No screenshot data available. Run tests first.", "warning");
+            return;
+        }
 
-    logLine("Generating Excel report (using base file) with embedded screenshots...");
+        logLine("Generating Excel report (using base file) with embedded screenshots...");
 
-    // 1️⃣ Load your existing Excel file (must be in same deployed folder)
-    const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
-    if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
-    const arrayBuffer = await response.arrayBuffer();
+        // 1️⃣ Load the base Excel file (same folder as deployed HTML)
+        const excelFileName = "DMI-Testcases-Excelsheet.xlsx";
+        const response = await fetch(excelFileName);
+        if (!response.ok) throw new Error(`Failed to fetch Excel file (${excelFileName}): ${response.status}`);
+        const arrayBuffer = await response.arrayBuffer();
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(arrayBuffer);
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
 
-    // 2️⃣ Select the correct worksheet
-    const sheetName = "V1.4_DMI_Functional_testcase ";
-    let worksheet = workbook.getWorksheet(sheetName);
-    if (!worksheet) worksheet = workbook.addWorksheet(sheetName);
+        // 2️⃣ Select sheet (create if missing)
+        const sheetName = "V1.4_DMI_Functional_testcase ";
+        let worksheet = workbook.getWorksheet(sheetName);
+        if (!worksheet) worksheet = workbook.addWorksheet(sheetName);
 
-    // 3️⃣ Parse screenshots from memory
-    const entries = screenshotLogData
-      .split(/TestCaseID:/)
-      .slice(1)
-      .map(block => {
-        const [idPart, ...dataParts] = block.trim().split("\n");
-        return {
-          id: idPart.trim(),
-          base64: dataParts.join("").replace(/-+$/, "").trim()
-        };
-      });
+        // 3️⃣ Parse screenshots from memory
+        const entries = screenshotLogData
+            .split(/TestCaseID:/)
+            .slice(1)
+            .map(block => {
+                const [idPart, ...dataParts] = block.trim().split("\n");
+                // Remove trailing dashes and trim whitespace
+                const base64Content = dataParts.join("").replace(/-+$/, "").trim();
+                return {
+                    id: idPart.trim(),
+                    base64: base64Content
+                };
+            });
 
-    if (entries.length === 0) {
-      showNotification("No screenshots found in memory.", "warning");
-      return;
-    }
+        if (entries.length === 0) {
+            showNotification("No screenshots found in memory.", "warning");
+            return;
+        }
 
-    logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
+        logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
 
-    // 4️⃣ Restore expected layout (your original Excel format)
-    worksheet.getColumn(1).width = 6;   // S.No
-    worksheet.getColumn(2).width = 23;  // IDS
-    worksheet.getColumn(3).width = 50;  // Test Scenarios
-    worksheet.getColumn(4).width = 45;  // Input Specifications
-    worksheet.getColumn(5).width = 45;  // Expected Output
-    worksheet.getColumn(6).width = 45;  // Observed Output
-    worksheet.getColumn(7).width = 25;  // Observed Output V1.0
-    worksheet.getColumn(8).width = 20;  // Type of Message
-    worksheet.getColumn(9).width = 90;  // Screenshot
-    worksheet.properties.defaultRowHeight = 25;
-    worksheet.views = [{ state: "frozen", ySplit: 1 }];
+        // 4️⃣ Restore layout and set OPTIMIZED Column Widths
+        // Widths are in Excel characters (approx. 10 characters = 75 pixels)
+        worksheet.getColumn(1).width = 5;      // A - S.No
+        worksheet.getColumn(2).width = 25;     // B - IDS / TestCase ID
+        worksheet.getColumn(3).width = 60;     // C - Test Scenarios
+        worksheet.getColumn(4).width = 60;     // D - Input Specifications
+        worksheet.getColumn(5).width = 60;     // E - Expected Output / Values
+        worksheet.getColumn(6).width = 60;     // F - Observed Output/Values (V1.4)
+        worksheet.getColumn(7).width = 15;     // G - Observed Output/Values V1.0 (Status)
+        worksheet.getColumn(8).width = 15;     // H - TYPE of Message
+        worksheet.getColumn(9).width = 100;    // I - Screenshot Column (Wide enough for image)
+        
+        // Add text wrapping for multi-line content columns
+        for (let i = 3; i <= 6; i++) { // Columns C through F
+            worksheet.getColumn(i).alignment = { wrapText: true, vertical: 'top' };
+        }
 
-    // 5️⃣ Ensure Screenshot header exists
-    const headerCell = worksheet.getCell("I1");
-    if (!headerCell.value) {
-      headerCell.value = "Screenshot";
-      headerCell.font = { name: "Arial", bold: true, size: 14, color: { argb: "FF000000" } };
-      headerCell.alignment = { horizontal: "center" };
-    }
+        worksheet.properties.defaultRowHeight = 20;
+        worksheet.views = [{ state: "frozen", ySplit: 1 }];
 
-    // 6️⃣ Embed screenshots (as PNG, freely placed)
-    for (const entry of entries) {
-      const testCaseId = entry.id;
-      const base64 = entry.base64;
-      if (!base64) continue;
+        // 5️⃣ Ensure Screenshot header
+        const headerCell = worksheet.getCell("I1");
+        if (!headerCell.value) {
+            headerCell.value = "Screenshot";
+            headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
+        }
 
-      // Find row where IDS matches (Column B)
-      let targetRow = null;
-      worksheet.eachRow((row, rowNumber) => {
-        const val = row.getCell(2).value;
-        if (val && val.toString().trim() === testCaseId) targetRow = rowNumber;
-      });
+        // 6️⃣ Embed screenshots
+        for (const entry of entries) {
+            const testCaseId = entry.id;
+            const base64 = entry.base64;
+            if (!base64) continue;
 
-      // If not found, append a new row
-      if (!targetRow) {
-        const newRow = worksheet.addRow([]);
-        targetRow = newRow.number;
-        worksheet.getCell(`B${targetRow}`).value = testCaseId;
-      }
+            // Find target row (match Column B with testCaseId)
+            let targetRowNumber = null;
+            worksheet.eachRow((row, rowNumber) => {
+                const val = row.getCell(2).value;
+                if (val && val.toString().trim() === testCaseId) {
+                    targetRowNumber = rowNumber;
+                }
+            });
 
-      try {
-        // Convert Base64 to Uint8Array (as PNG)
-        const cleanBase64 = base64.replace(/^data:image\/(jpeg|png);base64,/, "").trim();
-        const binary = atob(cleanBase64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            // If not found, add new row
+            if (!targetRowNumber) {
+                const newRow = worksheet.addRow([]);
+                targetRowNumber = newRow.number;
+                worksheet.getCell(`B${targetRowNumber}`).value = testCaseId;
+                worksheet.getRow(targetRowNumber).height = 20; // Default height for new rows
+            }
 
-        // Add image as PNG (instead of JPEG)
-        const imageId = workbook.addImage({
-          buffer: bytes,
-          extension: "png"
+            try {
+                // --- Image Embedding Fixes ---
+
+                // 1. Clean Base64: Remove data URL prefix (e.g., 'data:image/png;base64,') if it exists
+                const mimeTypePattern = /^data:image\/[^;]+;base64,/;
+                const cleanBase64 = base64.replace(mimeTypePattern, "").trim();
+                
+                if (!cleanBase64) {
+                    logLine(` Failed to clean Base64 for ${testCaseId}: Resulting string is empty.`);
+                    worksheet.getCell(`I${targetRowNumber}`).value = "Missing Screenshot Data.";
+                    continue;
+                }
+                
+                // 2. Decode Base64 → Uint8Array (Your original and correct decoding logic)
+                const binary = atob(cleanBase64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+                logLine(`Base64 decoded for ${testCaseId}. Bytes length: ${bytes.length}.`);
+                
+                // 3. Add image to workbook
+                // 🚨 Use 'png' if your screenshots are PNG, or 'jpeg' if they are JPEG.
+                const imageId = workbook.addImage({
+                    buffer: bytes,
+                    extension: "jpeg" 
+                    // extension: "jpeg" // <-- Use this if your screenshots are JPEGs
+                });
+
+                // 4. Embed image in Column I (index 8, 0-based)
+                // tl row index is 0-based, so targetRowNumber - 1 is correct for the top of the row.
+                worksheet.addImage(imageId, {
+                    tl: { col: 8, row: targetRowNumber - 1 }, // Column I (index 8), Row anchor
+                    ext: { width: 180, height: 100 },       // Image size
+                    editAs: "oneCell"                       // Image moves with cell
+                });
+
+                // 5. Set row height to ensure the image is fully visible (image height is 100)
+                worksheet.getRow(targetRowNumber).height = 100;
+
+                logLine(` Embedded image for ${testCaseId} at row ${targetRowNumber} (Col I).`);
+                
+                // --- Image Embedding Fixes End ---
+            } catch (err) {
+                logLine(` Failed to embed image for ${testCaseId}. Error: ${err.message}`);
+                worksheet.getCell(`I${targetRowNumber}`).value = `Error embedding screenshot: ${err.message}`;
+            }
+        }
+
+        // 7️⃣ Header formatting
+        worksheet.getRow(1).font = { bold: true, size: 18, name: "Arial" };
+        worksheet.getRow(1).alignment = { horizontal: "center", vertical: "middle" };
+
+        // 8️⃣ Save and download
+        const now = new Date();
+        const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         });
 
-        // Add image in Column I (no editAs → free placement)
-        worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 },
-          ext: { width: 180, height: 100 } // Default visible size
-        });
+        saveAs(blob, fileName);
+        logLine(" Excel report generated successfully with screenshots.");
+        showNotification("Excel report generated successfully with screenshots!", "success");
 
-        logLine(`✅ Embedded PNG image for ${testCaseId} at row ${targetRow}`);
-      } catch (err) {
-        logLine(`❌ Failed to embed image for ${testCaseId}: ${err.message}`);
-      }
+    } catch (err) {
+        logLine(` Error generating Excel report: ${err.message}`);
+        showNotification("Failed to generate Excel report.", "error");
     }
-
-    // 7️⃣ Re-style header
-    worksheet.getRow(1).font = { bold: true, size: 14, name: "Arial" };
-    worksheet.getRow(1).alignment = { horizontal: "center" };
-
-    // 8️⃣ Save and download Excel with timestamp
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    });
-
-    saveAs(blob, fileName);
-    logLine("✅ Excel report generated successfully with PNG screenshots.");
-    showNotification("Excel report generated successfully with screenshots!", "success");
-
-  } catch (err) {
-    logLine(`❌ Error generating Excel report: ${err.message}`);
-    showNotification("Failed to generate Excel report.", "error");
-  }
 });
 
   </script>
 
 </body>
 </html>
+
 
 
 
