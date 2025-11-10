@@ -8910,9 +8910,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    logLine("Generating Excel report (testing image embedding in Column J)...");
+    logLine("Testing Excel writing (text only, column J)...");
 
-    // Load the base Excel file
+    // Load base Excel file (ensure same directory)
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
@@ -8922,103 +8922,66 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
-    if (!worksheet) worksheet = workbook.addWorksheet(sheetName);
+    if (!worksheet) {
+      worksheet = workbook.addWorksheet(sheetName);
+      logLine("⚠️ Created new sheet (original not found).");
+    } else {
+      logLine("✅ Sheet loaded successfully.");
+    }
 
-    // Parse screenshots
+    // Parse test entries
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
       .map(block => {
-        const [idPart, ...dataParts] = block.trim().split("\n");
-        return {
-          id: idPart.trim(),
-          base64: dataParts.join("").replace(/-+$/, "").trim()
-        };
+        const [idPart] = block.trim().split("\n");
+        return idPart.trim();
       });
 
     if (entries.length === 0) {
-      showNotification("No screenshots found in memory.", "warning");
+      showNotification("No test case IDs found.", "warning");
       return;
     }
 
-    logLine(`Found ${entries.length} screenshots. Testing embedding in Excel...`);
+    logLine(`Found ${entries.length} test cases, writing text placeholders...`);
 
-    // Ensure Screenshot header exists
+    // Write header if needed
     const headerCell = worksheet.getCell("J1");
     if (!headerCell.value) {
       headerCell.value = "Screenshot";
-      headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
+      headerCell.font = { name: "Arial", bold: true, size: 14 };
       worksheet.getColumn("J").width = 45;
     }
 
-    // Loop through screenshots
-    for (const entry of entries) {
-      const testCaseId = entry.id;
-      const base64 = entry.base64;
-      if (!base64) continue;
-
-      // Find correct row (Column B)
+    // Write to each test case row in column J
+    for (const testCaseId of entries) {
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
-        const val = row.getCell(2).value;
+        const val = row.getCell(2).value; // Column B = TestCase ID
         if (val && val.toString().trim() === testCaseId) {
           targetRow = rowNumber;
         }
       });
 
-      // If not found, add new row
       if (!targetRow) {
         const newRow = worksheet.addRow([]);
         targetRow = newRow.number;
         worksheet.getCell(`B${targetRow}`).value = testCaseId;
       }
 
-      try {
-        // Convert Base64 → blob → downloaded image for testing
-        const byteCharacters = atob(base64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: "image/jpeg" });
+      // Write text in column J (this is where image would go later)
+      const cell = worksheet.getCell(`J${targetRow}`);
+      cell.value = `✅ Written OK for ${testCaseId}`;
+      cell.alignment = { wrapText: true, vertical: "middle" };
+      cell.font = { name: "Arial", size: 11 };
 
-        // Download the image for verification
-        const testFileName = `Test_${testCaseId}.jpeg`;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = testFileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        // Add image into Excel (Column J)
-        const imageId = workbook.addImage({
-          buffer: byteArray,
-          extension: "jpeg"
-        });
-
-        worksheet.addImage(imageId, {
-          tl: { col: 9, row: targetRow - 1 }, // Column J (index 9, 0-based)
-          ext: { width: 180, height: 100 },   // Small but visible
-          editAs: "oneCell"
-        });
-
-        logLine(`Embedded image for ${testCaseId} at row ${targetRow} (Column J).`);
-      } catch (err) {
-        logLine(`Failed to embed image for ${testCaseId}: ${err.message}`);
-      }
+      logLine(`Wrote to row ${targetRow} for ${testCaseId}`);
     }
-
-    worksheet.getRow(1).font = { bold: true, size: 18, name: "Arial" };
-    worksheet.getRow(1).alignment = { horizontal: "center" };
 
     // Save Excel file
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `LPOCIP_Test_Report_IMG_${timestamp}.xlsx`;
+    const fileName = `LPOCIP_Test_Report_TEXTONLY_${timestamp}.xlsx`;
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
@@ -9026,12 +8989,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
-
-    logLine("Excel report generated successfully with test images.");
-    showNotification("Excel report generated successfully (with images in J column)!", "success");
+    logLine("✅ Excel report generated successfully (text only).");
+    showNotification("Excel report generated successfully (text only test)!", "success");
 
   } catch (err) {
-    logLine(`Error generating Excel report: ${err.message}`);
+    logLine(`❌ Error generating Excel report: ${err.message}`);
     showNotification("Failed to generate Excel report.", "error");
   }
 });
@@ -9040,6 +9002,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
