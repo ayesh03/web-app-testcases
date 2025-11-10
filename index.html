@@ -8920,18 +8920,24 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     await workbook.xlsx.load(arrayBuffer);
     logLine("Excel file loaded successfully.");
 
-    // Select correct worksheet
+    // ✅ Select your exact sheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found.`);
 
-    // ✅ Ensure all columns up to I (9) exist and have width
-    for (let i = 1; i <= 9; i++) {
+    // ✅ Ensure at least 9 columns exist with proper width (ExcelJS internal safety)
+    if (!worksheet.columns) worksheet.columns = [];
+    const totalCols = Math.max(worksheet.columnCount || 0, 9);
+    while (worksheet.columns.length < totalCols) worksheet.columns.push({ width: 25 });
+
+    for (let i = 1; i <= totalCols; i++) {
       const col = worksheet.getColumn(i);
-      if (!col.width || isNaN(col.width)) col.width = 25; // Prevents ExcelJS width error
+      if (!col || typeof col.width !== "number" || isNaN(col.width)) {
+        worksheet.getColumn(i).width = 25;
+      }
     }
 
-    // Parse screenshot entries from memory log
+    // ✅ Parse screenshots from memory
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8951,16 +8957,20 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Adding to Excel...`);
 
-    // Process each image entry
+    // ✅ Process screenshots
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
-      if (!base64) continue;
+      if (!base64 || !/^KAVACH_DMI_0[2-9]/.test(testCaseId)) {
+        // Skip before KAVACH_DMI_02.xx
+        logLine(`Skipping ${testCaseId} (not eligible).`);
+        continue;
+      }
 
-      // Find target row by matching testCaseId in column B
+      // Find row by TestCase ID in column B
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
-        const val = row.getCell(2).value;
+        const val = row.getCell(2).value; // Column B = index 2 (1-based)
         if (val && val.toString().trim() === testCaseId) {
           targetRow = rowNumber;
         }
@@ -8972,18 +8982,17 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
 
       try {
-        // Convert base64 to binary buffer
+        // Convert Base64 to binary buffer
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-
-        // Add image to workbook
         const imageId = workbook.addImage({
           buffer: imageBuffer,
           extension: "jpeg"
         });
 
-        // Insert image in column I (index 8, since 0-based)
+        // ✅ Place in column I (index 8) — below header row
         worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 },
+          tl: { col: 8, row: targetRow - 1 }, // Column I, adjust 1-based to 0-based row
+          ext: { width: 300, height: 180 },
           editAs: "oneCell"
         });
 
@@ -8993,7 +9002,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
     }
 
-    // ✅ Save Excel file with timestamp
+    // ✅ Save output
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -9004,7 +9013,6 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
-
     logLine("Excel report generated successfully with images (no shrink).");
     showNotification("Excel report generated successfully with images!", "success");
 
@@ -9018,6 +9026,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
