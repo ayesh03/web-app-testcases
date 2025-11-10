@@ -8973,7 +8973,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         worksheet.getCell(`B${targetRow}`).value = testCaseId;
       }
 
-      // ❌ Commented out image embedding
+      // Commented out image embedding
       /*
       const imageBuffer = Uint8Array.from(atob(entry.base64), c => c.charCodeAt(0));
       const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
@@ -8984,7 +8984,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       });
       */
 
-      // ✅ Write placeholder text in Column I
+      // Write placeholder text in Column I
       worksheet.getCell(`I${targetRow}`).value = `Image placeholder for ${testCaseId}`;
       worksheet.getCell(`I${targetRow}`).alignment = { wrapText: true, vertical: "middle" };
 
@@ -9020,5 +9020,6 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
