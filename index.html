@@ -8925,7 +8925,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found in Excel.`);
 
-    // ⚙️ Ensure column I is initialized internally (no layout change)
+    //  Ensure column I is initialized internally (no layout change)
     worksheet.getColumn("I");
 
     // Parse screenshot data
@@ -8964,7 +8964,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       });
 
       if (!targetRow) {
-        logLine(`⚠️ TestCaseID '${testCaseId}' not found — skipping.`);
+        logLine(`TestCaseID '${testCaseId}' not found — skipping.`);
         continue;
       }
 
@@ -8972,15 +8972,15 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
         const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
 
-        // ✅ Safely insert the image in column I without resizing or formatting
+        // Safely insert the image in column I without resizing or formatting
         worksheet.addImage(imageId, {
           tl: { col: 8, row: targetRow - 1 },
           editAs: "oneCell"
         });
 
-        logLine(`✔️ Image added for ${testCaseId} at row ${targetRow}, column I.`);
+        logLine(`Image added for ${testCaseId} at row ${targetRow}, column I.`);
       } catch (err) {
-        logLine(`⚠️ Failed to add image for ${testCaseId}: ${err.message}`);
+        logLine(`Failed to add image for ${testCaseId}: ${err.message}`);
       }
     }
 
@@ -9009,6 +9009,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
