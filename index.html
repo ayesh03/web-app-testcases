@@ -8906,133 +8906,119 @@ function formatTestCasePacketWithModes(testCaseId, modesOperation) {
 document.getElementById("generateReportBtn").addEventListener("click", async () => {
   try {
     if (!screenshotLogData || screenshotLogData.trim() === "") {
-      showNotification("No screenshot data available!", "warning");
+      showNotification("No screenshot data available. Run tests first.", "warning");
       return;
     }
 
-    logLine("INFO: Creating new Excel workbook...");
+    logLine("INFO: Starting Excel report generation...");
+    const response = await fetch("DMI-Testcases-Excelsheet.xlsx", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
+    const arrayBuffer = await response.arrayBuffer();
 
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("V1.4_DMI_Functional_testcase ");
+    await workbook.xlsx.load(arrayBuffer);
+    const sheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
+    if (!sheet) throw new Error("Worksheet not found.");
 
-    // === STEP 1: Define Headers ===
-    const headers = [
-      "S.NO",
-      "TestCaseID",
-      "Test Case Name",
-      "Type",
-      "Description",
-      "Expected Result",
-      "Actual Result",
-      "Status",
-      "Screenshot"
-    ];
+    logLine("INFO: Excel file loaded successfully.");
 
-    sheet.addRow(headers);
-    const headerRow = sheet.getRow(1);
-    headerRow.font = { bold: true };
-    headerRow.alignment = { horizontal: "center" };
-    headerRow.height = 25;
-
-    // Define column widths (prevent shrinking)
-    sheet.columns = [
-      { width: 10 },  // A
-      { width: 25 },  // B = TestCaseID
-      { width: 35 },  // C
-      { width: 20 },  // D
-      { width: 40 },  // E
-      { width: 30 },  // F
-      { width: 30 },  // G
-      { width: 15 },  // H
-      { width: 55 },  // I = Screenshot
-    ];
-
-    logLine("INFO: Headers and columns created successfully.");
-
-    // === STEP 2: Parse Screenshot Log ===
+    // Parse screenshot entries
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
-      .map((block, index) => {
+      .map(block => {
         const [idPart, ...dataParts] = block.trim().split("\n");
         const base64 = dataParts.join("").replace(/-+$/, "").trim();
-        return { sno: index + 1, id: idPart.trim(), base64 };
+        return { id: idPart.trim(), base64 };
       });
 
-    if (entries.length === 0) {
-      logLine("WARNING: No screenshots found in log data.");
-      showNotification("No screenshots found in memory.", "warning");
-      return;
-    }
-
-    logLine(`INFO: Found ${entries.length} screenshots to insert.`);
-
-    // === STEP 3: Add TestCase Rows + Insert Images ===
+    const imageWidth = 400;
+    const imageHeight = 280;
+    const targetCol = 9;
     let addedCount = 0;
-    const imageWidth = 420;  // px
-    const imageHeight = 260; // px
 
-    for (const { sno, id, base64 } of entries) {
-      if (!id || !base64) continue;
+    for (const { id, base64 } of entries) {
+      if (!id || !base64) {
+        logLine(`WARNING: Invalid entry skipped.`);
+        continue;
+      }
 
-      // Detect image format
+      // Detect image type
       let extension = "jpeg";
       if (base64.startsWith("iVBORw0KGgo")) extension = "png";
       else if (base64.startsWith("/9j/")) extension = "jpeg";
       else {
-        logLine(`WARNING: Unknown image format for ${id}, skipped.`);
+        logLine(`WARNING: Unknown image format for ${id} — skipped.`);
         continue;
       }
 
-      // Add row with TestCaseID
-      const row = sheet.addRow([sno, id, "", "", "", "", "", "", ""]);
-      row.height = 200; // make space for image
-
-      // Decode Base64 → binary
-      try {
-        const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
-        const buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
-
-        if (buffer.length < 5000) {
-          logLine(`ERROR: Invalid image buffer for ${id}.`);
-          continue;
+      // Find TestCaseID row (column B)
+      let targetRow = null;
+      sheet.eachRow((row, rowNum) => {
+        const val = row.getCell(2).value;
+        if (val && val.toString().trim().toUpperCase() === id.toUpperCase()) {
+          targetRow = rowNum;
         }
+      });
 
-        const imageId = workbook.addImage({ buffer, extension });
+      if (!targetRow) {
+        logLine(`WARNING: TestCaseID '${id}' not found in Excel.`);
+        continue;
+      }
 
-        // Insert image at correct cell
-        const rowNum = row.number;
-        sheet.addImage(imageId, {
-          tl: { col: 8, row: rowNum - 1 }, // col=8 → column I
-          ext: { width: imageWidth, height: imageHeight },
-          editAs: "oneCell",
-        });
+      // Decode image
+      const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
+      if (!buffer || buffer.length < 100) {
+        logLine(`ERROR: Invalid Base64 for ${id}.`);
+        continue;
+      }
 
-        logLine(`INFO: Image added for ${id} (Row ${rowNum}, Col I).`);
-        addedCount++;
+      // Add image into Excel
+      const imageId = workbook.addImage({ buffer, extension });
+      sheet.addImage(imageId, {
+        tl: { col: targetCol - 1, row: targetRow - 1 },
+        ext: { width: imageWidth, height: imageHeight }
+      });
+
+      logLine(`INFO: Image added for ${id} at row ${targetRow}, format ${extension}, size ${buffer.length} bytes.`);
+      addedCount++;
+
+      // Also download image separately
+      try {
+        const imageBlob = new Blob([buffer], { type: `image/${extension}` });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(imageBlob);
+        link.download = `${id}.${extension}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+        logLine(`INFO: Screenshot image for ${id} downloaded successfully.`);
       } catch (err) {
-        logLine(`ERROR: Failed to insert image for ${id}: ${err.message}`);
+        logLine(`ERROR: Failed to download image for ${id}: ${err.message}`);
       }
     }
 
-    // === STEP 4: Download Excel ===
+    // Save Excel with images
     const bufferOut = await workbook.xlsx.writeBuffer();
     const blob = new Blob([bufferOut], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
 
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "Auto_Generated_KAVACH_Report.xlsx";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const excelLink = document.createElement("a");
+    excelLink.href = URL.createObjectURL(blob);
+    excelLink.download = "Updated_DMI-Testcases-Excelsheet.xlsx";
+    document.body.appendChild(excelLink);
+    excelLink.click();
+    document.body.removeChild(excelLink);
 
-    logLine(`INFO: Excel generated successfully with ${addedCount} images.`);
-    showNotification(`Excel generated successfully with ${addedCount} screenshots!`, "success");
+    logLine(`INFO: ${addedCount} images added successfully!`);
+    showNotification(`${addedCount} images added successfully!`, "success");
+
   } catch (err) {
     logLine(`ERROR: ${err.message}`);
-    showNotification("Failed to generate Excel: " + err.message, "error");
+    showNotification("Failed to generate Excel report.", "error");
   }
 });
 
@@ -9040,6 +9026,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
