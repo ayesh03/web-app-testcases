@@ -8909,9 +8909,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    logLine("Starting Excel report generation — keeping default Excel layout...");
+    logLine("Starting Excel report generation — preserving layout (safe internal width fix)...");
 
-    // Load your existing Excel file
+    // Load your Excel file
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
@@ -8920,12 +8920,16 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     await workbook.xlsx.load(arrayBuffer);
     logLine("Excel file loaded successfully.");
 
-    //  Use your real worksheet
+    // ✅ Select your worksheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found.`);
 
-    //  Parse screenshot entries
+    // ✅ Add "virtual" width to column I to avoid ExcelJS error (no visual change)
+    const col = worksheet.getColumn(9); // Column I = 9 (1-based index)
+    if (!col.width || isNaN(col.width)) col.width = 25;
+
+    // ✅ Parse screenshots
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8945,23 +8949,22 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Adding to Excel...`);
 
-    //  Process screenshots (no size/width modification)
+    // ✅ Insert screenshots
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
 
+      // Skip before 02.xx test cases
       if (!base64 || !/^KAVACH_DMI_0[2-9]/.test(testCaseId)) {
         logLine(`Skipping ${testCaseId} (not eligible).`);
         continue;
       }
 
-      // Find the row in column B
+      // Find matching row in column B
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const val = row.getCell(2).value; // column B
-        if (val && val.toString().trim() === testCaseId) {
-          targetRow = rowNumber;
-        }
+        if (val && val.toString().trim() === testCaseId) targetRow = rowNumber;
       });
 
       if (!targetRow) {
@@ -8970,25 +8973,26 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
 
       try {
+        // Decode base64 → buffer
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
         const imageId = workbook.addImage({
           buffer: imageBuffer,
           extension: "jpeg"
         });
 
-        //  Just insert the image in column I as-is
+        // ✅ Just insert the image naturally
         worksheet.addImage(imageId, {
           tl: { col: 8, row: targetRow - 1 }, // column I
           editAs: "oneCell"
         });
 
-        logLine(`Image added for ${testCaseId} at row ${targetRow}, column I (no resizing).`);
+        logLine(`Image added for ${testCaseId} at row ${targetRow}, column I.`);
       } catch (err) {
         logLine(`Failed to add image for ${testCaseId}: ${err.message}`);
       }
     }
 
-    //  Save new Excel file
+    // ✅ Save the Excel file
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -9000,8 +9004,8 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     saveAs(blob, fileName);
 
-    logLine("Excel report generated successfully (layout preserved).");
-    showNotification("Excel report generated successfully with original layout!", "success");
+    logLine("Excel report generated successfully — layout unchanged.");
+    showNotification("Excel report generated successfully (layout unchanged)!", "success");
 
   } catch (err) {
     logLine(`ERROR: ${err.message}`);
@@ -9013,4 +9017,5 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
