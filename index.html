@@ -8920,16 +8920,16 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     await workbook.xlsx.load(arrayBuffer);
     logLine("Excel file loaded successfully.");
 
-    // ✅ Select your worksheet
+    //  Select your worksheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found.`);
 
-    // ✅ Add "virtual" width to column I to avoid ExcelJS error (no visual change)
+    //  Add "virtual" width to column I to avoid ExcelJS error (no visual change)
     const col = worksheet.getColumn(9); // Column I = 9 (1-based index)
     if (!col.width || isNaN(col.width)) col.width = 25;
 
-    // ✅ Parse screenshots
+    //  Parse screenshots
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8949,7 +8949,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Adding to Excel...`);
 
-    // ✅ Insert screenshots
+    //  Insert screenshots
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
@@ -8980,7 +8980,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
           extension: "jpeg"
         });
 
-        // ✅ Just insert the image naturally
+        //  Just insert the image naturally
         worksheet.addImage(imageId, {
           tl: { col: 8, row: targetRow - 1 }, // column I
           editAs: "oneCell"
@@ -8992,7 +8992,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
     }
 
-    // ✅ Save the Excel file
+    //  Save the Excel file
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -9017,5 +9017,6 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
