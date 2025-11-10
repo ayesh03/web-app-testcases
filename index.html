@@ -8994,8 +8994,8 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         // Keep the image small (e.g., 100x60)
         worksheet.addImage(imageId, {
           tl: { col: 10, row: targetRow - 1 }, // Column K (0-based index 10)
-          ext: { width: 80, height: 60 },
-          editAs: "oneCell"
+          // ext: { width: 80, height: 60 },
+          // editAs: "oneCell"
         });
 
         logLine(` Embedded image for ${testCaseId} at row ${targetRow} (Column K).`);
@@ -9034,3 +9034,4 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
