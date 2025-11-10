@@ -8919,14 +8919,20 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     const file = fileInput.files[0];
     const arrayBuffer = await file.arrayBuffer();
+
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
-    const sheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
-    if (!sheet) throw new Error("Worksheet not found.");
 
-    logLine(`Excel file '${file.name}' loaded successfully.`);
+    // ✅ Keep your original sheet untouched
+    const mainSheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
+    const screenshotSheet = workbook.addWorksheet("Screenshots");
 
-    // Parse screenshot log data
+    screenshotSheet.columns = [
+      { header: "TestCaseID", key: "id", width: 25 },
+      { header: "Screenshot", key: "img", width: 50 }
+    ];
+
+    // Parse screenshot data
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8936,41 +8942,24 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         return { id: idPart.trim(), base64 };
       });
 
-    let addedCount = 0;
-    const imageWidth = 180;
-    const imageHeight = 120;
+    let rowIndex = 2;
+    const imageWidth = 180, imageHeight = 120;
 
     for (const entry of entries) {
       const { id, base64 } = entry;
-      if (!id || !base64.startsWith("/9j/")) continue;
+      if (!base64.startsWith("/9j/")) continue;
 
-      let targetRow = null;
-      sheet.eachRow((row, rowNumber) => {
-        const val = row.getCell(2).value;
-        if (val && val.toString().trim().toUpperCase() === id.toUpperCase()) {
-          targetRow = rowNumber;
-        }
+      screenshotSheet.getCell(`A${rowIndex}`).value = id;
+
+      const buffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      const imageId = workbook.addImage({ buffer, extension: "jpeg" });
+
+      screenshotSheet.addImage(imageId, {
+        tl: { col: 1, row: rowIndex - 1 },
+        ext: { width: imageWidth, height: imageHeight }
       });
 
-      if (!targetRow) {
-        logLine(` TestCaseID '${id}' not found in Excel.`);
-        continue;
-      }
-
-      const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      const imageId = workbook.addImage({
-        buffer: imageBuffer,
-        extension: "jpeg",
-      });
-
-      sheet.addImage(imageId, {
-        tl: { col: 8, row: targetRow - 1 }, // column I (index 8)
-        ext: { width: imageWidth, height: imageHeight },
-        editAs: "oneCell",
-      });
-
-      addedCount++;
-      logLine(` Image added for '${id}' at row ${targetRow}, column I.`);
+      rowIndex++;
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -8985,18 +8974,17 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     link.click();
     document.body.removeChild(link);
 
-    logLine(`INFO: ${addedCount} screenshots added successfully!`);
-    showNotification(`${addedCount} images added successfully!`, "success");
-
+    showNotification("Screenshots sheet added successfully!", "success");
   } catch (err) {
-    logLine(`ERROR: ${err.message}`);
-    showNotification("Failed to update Excel with images.", "error");
+    showNotification("Failed to update Excel.", "error");
+    console.error(err);
   }
 });
   </script>
 
 </body>
 </html>
+
 
 
 
