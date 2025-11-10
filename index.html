@@ -8925,8 +8925,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     let worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found in Excel.`);
 
-    //  Ensure column I is initialized internally (no layout change)
-    worksheet.getColumn("I");
+    // Ensure Column I exists internally
+    if (!worksheet.getColumn(9)) {
+      worksheet.getColumn(9).values = [];
+      logLine("Initialized missing Column I metadata.");
+    }
 
     // Parse screenshot data
     const entries = screenshotLogData
@@ -8948,13 +8951,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Adding to Excel...`);
 
-    // Add images only — no header, no formatting
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
       if (!base64) continue;
 
-      // Find row for this TestCaseID (in Column B)
+      // Find correct row where testCaseId is in column B
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const val = row.getCell(2).value;
@@ -8972,11 +8974,18 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
         const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
 
-        // Safely insert the image in column I without resizing or formatting
+        // Add placeholder in Column I to ensure it exists in ExcelJS model
+        const placeholderCell = worksheet.getCell(`I${targetRow}`);
+        placeholderCell.value = " "; // Invisible space placeholder
+
+        // Add image in Column I
         worksheet.addImage(imageId, {
           tl: { col: 8, row: targetRow - 1 },
           editAs: "oneCell"
         });
+
+        // Remove placeholder text
+        placeholderCell.value = null;
 
         logLine(`Image added for ${testCaseId} at row ${targetRow}, column I.`);
       } catch (err) {
@@ -8995,24 +9004,16 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
-    logLine(" Excel report generated successfully with images (no shrink).");
+    logLine("Excel report generated successfully with images (no shrink).");
     showNotification("Excel report generated successfully with images!", "success");
 
   } catch (err) {
-    logLine(` ERROR: ${err.message}`);
+    logLine(`ERROR: ${err.message}`);
     showNotification("Failed to generate Excel report.", "error");
   }
 });
-
 
   </script>
 
 </body>
 </html>
-
-
-
-
-
-
-
