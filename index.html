@@ -8974,17 +8974,17 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
-
+    
+    logLine(`Excel updated with screenshots and downloaded!, success`);
     showNotification("Excel updated with screenshots and downloaded!", "success");
   } catch (err) {
     logLine(`ERROR: ${err.message}`);
     showNotification("Failed to update Excel with images.", "error");
   }
 });
-
-
   </script>
 
 </body>
 </html>
+
 
