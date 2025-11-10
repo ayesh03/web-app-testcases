@@ -8906,86 +8906,64 @@ function formatTestCasePacketWithModes(testCaseId, modesOperation) {
     }
 document.getElementById("generateReportBtn").addEventListener("click", async () => {
   try {
-    const fileInput = document.getElementById("excelFileInput");
-    if (!fileInput.files.length) {
-      showNotification("Please select your Excel file first.", "warning");
-      return;
-    }
-
     if (!screenshotLogData || screenshotLogData.trim() === "") {
       showNotification("No screenshot data available. Run tests first.", "warning");
       return;
     }
 
-    const file = fileInput.files[0];
-    const arrayBuffer = await file.arrayBuffer();
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".xlsx";
+    fileInput.click();
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(arrayBuffer);
+    fileInput.onchange = async (event) => {
+      const file = event.target.files[0];
+      if (!file) {
+        showNotification("Excel file not selected.", "warning");
+        return;
+      }
 
-    // ✅ Keep your original sheet untouched
-    const mainSheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
-    const screenshotSheet = workbook.addWorksheet("Screenshots");
+      // Parse screenshots from memory
+      const entries = screenshotLogData
+        .split(/TestCaseID:/)
+        .slice(1)
+        .map(block => {
+          const [idPart, ...dataParts] = block.trim().split("\n");
+          return {
+            id: idPart.trim(),
+            base64: dataParts.join("").replace(/-+$/, "").trim()
+          };
+        });
 
-    screenshotSheet.columns = [
-      { header: "TestCaseID", key: "id", width: 25 },
-      { header: "Screenshot", key: "img", width: 50 }
-    ];
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("screenshots", JSON.stringify(entries));
 
-    // Parse screenshot data
-    const entries = screenshotLogData
-      .split(/TestCaseID:/)
-      .slice(1)
-      .map(block => {
-        const [idPart, ...dataParts] = block.trim().split("\n");
-        const base64 = dataParts.join("").replace(/-+$/, "").trim();
-        return { id: idPart.trim(), base64 };
+      showNotification("Uploading and updating Excel…", "info");
+
+      const response = await fetch("http://localhost:3000/add-screenshots", {
+        method: "POST",
+        body: formData,
       });
 
-    let rowIndex = 2;
-    const imageWidth = 180, imageHeight = 120;
+      if (!response.ok) throw new Error("Server error during Excel update");
 
-    for (const entry of entries) {
-      const { id, base64 } = entry;
-      if (!base64.startsWith("/9j/")) continue;
+      // Download updated file
+      const blob = await response.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "Updated_Test_Report.xlsx";
+      link.click();
 
-      screenshotSheet.getCell(`A${rowIndex}`).value = id;
-
-      const buffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      const imageId = workbook.addImage({ buffer, extension: "jpeg" });
-
-      screenshotSheet.addImage(imageId, {
-        tl: { col: 1, row: rowIndex - 1 },
-        ext: { width: imageWidth, height: imageHeight }
-      });
-
-      rowIndex++;
-    }
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    });
-
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Updated_${file.name}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    showNotification("Screenshots sheet added successfully!", "success");
+      showNotification("Excel updated successfully!", "success");
+    };
   } catch (err) {
-    showNotification("Failed to update Excel.", "error");
-    console.error(err);
+    console.error("❌", err);
+    showNotification("Excel generation failed: " + err.message, "error");
   }
 });
+
   </script>
 
 </body>
 </html>
-
-
-
-
-
