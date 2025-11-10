@@ -8920,18 +8920,17 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     await workbook.xlsx.load(arrayBuffer);
     logLine("Excel file loaded successfully.");
 
-    // Select the correct worksheet
+    // Select correct worksheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
-    if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found in Excel.`);
+    if (!worksheet) throw new Error(`Worksheet '${sheetName}' not found.`);
 
-    // Ensure Column I exists internally
-    if (!worksheet.getColumn(9)) {
-      worksheet.getColumn(9).values = [];
-      logLine("Initialized missing Column I metadata.");
+    // ✅ Ensure all columns up to I (9) exist in model (to avoid undefined width error)
+    for (let i = 1; i <= 9; i++) {
+      if (!worksheet.getColumn(i)) worksheet.getColumn(i).values = [];
     }
 
-    // Parse screenshot data
+    // Parse screenshot entries
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8951,12 +8950,13 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Adding to Excel...`);
 
+    // Process each image
     for (const entry of entries) {
       const testCaseId = entry.id;
       const base64 = entry.base64;
       if (!base64) continue;
 
-      // Find correct row where testCaseId is in column B
+      // Locate target row where ID matches in column B
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const val = row.getCell(2).value;
@@ -8974,18 +8974,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
         const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
 
-        // Add placeholder in Column I to ensure it exists in ExcelJS model
-        const placeholderCell = worksheet.getCell(`I${targetRow}`);
-        placeholderCell.value = " "; // Invisible space placeholder
-
-        // Add image in Column I
+        // Insert image into column I (col 8 = index-based)
         worksheet.addImage(imageId, {
           tl: { col: 8, row: targetRow - 1 },
           editAs: "oneCell"
         });
-
-        // Remove placeholder text
-        placeholderCell.value = null;
 
         logLine(`Image added for ${testCaseId} at row ${targetRow}, column I.`);
       } catch (err) {
@@ -8993,7 +8986,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       }
     }
 
-    // Save updated Excel
+    // Save Excel file
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -9017,3 +9010,4 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
