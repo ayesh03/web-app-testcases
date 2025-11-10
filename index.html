@@ -8962,12 +8962,6 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       const testCaseId = entry.id;
       const base64 = entry.base64;
 
-      // Skip before 02.xx testcases
-      if (!base64 || !/^KAVACH_DMI_0[2-9]/.test(testCaseId)) {
-        logLine(`Skipping ${testCaseId} (not eligible).`);
-        continue;
-      }
-
       // Find target row in column B
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
@@ -9033,6 +9027,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
