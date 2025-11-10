@@ -12,6 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
 
+
   
   <style>
     :root{
@@ -8912,82 +8913,80 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    // Fetch the original Excel file
+    logLine("Starting Excel report generation...");
+
+    // Load the original Excel
     const response = await fetch("./DMI-Testcases-Excelsheet.xlsx", { cache: "no-store" });
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
 
-    // Load workbook using xlsx-populate
-    const workbook = await XlsxPopulate.fromDataAsync(arrayBuffer);
-    const sheet = workbook.sheet("V1.4_DMI_Functional_testcase ");
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(arrayBuffer);
+    const sheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
     if (!sheet) throw new Error("Worksheet 'V1.4_DMI_Functional_testcase ' not found.");
 
-    // Parse screenshot log data
+    logLine("Excel file loaded successfully.");
+
+    // Parse the screenshot log data
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
       .map(block => {
         const [idPart, ...dataParts] = block.trim().split("\n");
         const base64 = dataParts.join("").replace(/-+$/, "").trim();
-        logLine(`DEBUG: Found entry for ${idPart.trim()} (Base64 length: ${base64.length})`);
-        return {
-          id: idPart.trim(),
-          base64
-        };
+        return { id: idPart.trim(), base64 };
       });
 
     let addedCount = 0;
 
     for (const entry of entries) {
       const { id, base64 } = entry;
-      if (!id) continue;
-
-      // Check if valid image
-      if (!base64 || !base64.startsWith("/9j/")) {
-        logLine(`⚠️ Skipping ${id} — invalid or empty Base64 (len ${base64.length}).`);
+      if (!id || !base64.startsWith("/9j/")) {
+        logLine(`⚠️ Skipping ${id} — invalid or empty Base64.`);
         continue;
       }
 
-      // Find matching TestCaseID in column B (case-insensitive, trimmed)
-      const usedRange = sheet.usedRange();
-      const values = usedRange.value();
+      // Find matching TestCaseID in column B
       let targetRow = null;
-
-      for (let r = 0; r < values.length; r++) {
-        const cellVal = values[r][1]; // column B = index 1
+      sheet.eachRow((row, rowNumber) => {
+        const cellVal = row.getCell(2).value; // column B
         if (cellVal && cellVal.toString().trim().toUpperCase() === id.toUpperCase()) {
-          targetRow = r + 1; // 1-based row
-          break;
+          targetRow = rowNumber;
         }
-      }
+      });
 
       if (!targetRow) {
-        logLine(`❌ TestCaseID '${id}' not found in Excel — check spacing or case.`);
+        logLine(`❌ TestCaseID '${id}' not found in Excel.`);
         continue;
       }
 
-      try {
-        // Add the image at column I (col 9)
-        sheet.addImage(`data:image/jpeg;base64,${base64}`, {
-          name: id,
-          type: "image/jpeg",
-          position: {
-            type: "twoCellAnchor",
-            from: { col: 9, row: targetRow },
-            to: { col: 10, row: targetRow + 10 }
-          }
-        });
+      // Convert Base64 to buffer
+      const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 
-        addedCount++;
-        logLine(`✅ Image added for '${id}' at row ${targetRow}, column I.`);
-      } catch (err) {
-        logLine(`❌ Failed to add image for ${id}: ${err.message}`);
-      }
+      // Add image to workbook
+      const imageId = workbook.addImage({
+        buffer: imageBuffer,
+        extension: "jpeg",
+      });
+
+      // Configure fixed image size & position (adjust as needed)
+      const imageWidth = 180;  // in pixels
+      const imageHeight = 120; // in pixels
+      const colIndex = 9; // column I
+
+      sheet.addImage(imageId, {
+        tl: { col: colIndex - 1, row: targetRow - 1 }, // top-left corner
+        ext: { width: imageWidth, height: imageHeight }, // fixed size
+        editAs: "oneCell"
+      });
+
+      addedCount++;
+      logLine(`✅ Image added for '${id}' at row ${targetRow}, column I.`);
     }
 
-    // Export updated workbook
-    const output = await workbook.outputAsync();
-    const blob = new Blob([output], {
+    // Save and download updated file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     });
 
@@ -9007,10 +9006,8 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     showNotification("Failed to update Excel with images.", "error");
   }
 });
-
-
-
   </script>
 
 </body>
 </html>
+
