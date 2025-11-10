@@ -8943,13 +8943,16 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     logLine(`Found ${entries.length} screenshots. Embedding into Excel...`);
 
-    // Ensure Screenshot header exists
     const headerCell = worksheet.getCell("I1");
-    if (!headerCell.value) {
-      headerCell.value = "Screenshot-image";
-      headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
-      worksheet.getColumn("I").width = 45;
-    }
+if (!headerCell.value) {
+  headerCell.value = "Screenshot-image";
+  headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
+
+  // ✅ Safely set width only if the column exists
+  const colI = worksheet.getColumn(9); // Column I = index 9 (1-based)
+  if (colI) colI.width = 45;
+}
+
 
     // Embed screenshots (no size specified)
     for (const entry of entries) {
@@ -9021,5 +9024,6 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
