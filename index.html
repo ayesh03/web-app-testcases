@@ -8915,7 +8915,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("V1.4_DMI_Functional_testcase ");
 
-    // === STEP 1: Define Headers (based on your provided Excel structure) ===
+    // === STEP 1: Define Headers ===
     const headers = [
       "S.NO",
       "TestCaseID",
@@ -8929,24 +8929,25 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     ];
 
     sheet.addRow(headers);
-    sheet.getRow(1).font = { bold: true };
-    sheet.getRow(1).alignment = { horizontal: "center" };
-    sheet.getRow(1).height = 25;
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.alignment = { horizontal: "center" };
+    headerRow.height = 25;
 
-    // Set consistent column widths
+    // Define column widths (prevent shrinking)
     sheet.columns = [
-      { width: 10 },
-      { width: 25 },
-      { width: 35 },
-      { width: 20 },
-      { width: 40 },
-      { width: 30 },
-      { width: 30 },
-      { width: 15 },
-      { width: 50 } // screenshot column
+      { width: 10 },  // A
+      { width: 25 },  // B = TestCaseID
+      { width: 35 },  // C
+      { width: 20 },  // D
+      { width: 40 },  // E
+      { width: 30 },  // F
+      { width: 30 },  // G
+      { width: 15 },  // H
+      { width: 55 },  // I = Screenshot
     ];
 
-    logLine("INFO: Headers added successfully.");
+    logLine("INFO: Headers and columns created successfully.");
 
     // === STEP 2: Parse Screenshot Log ===
     const entries = screenshotLogData
@@ -8964,12 +8965,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    logLine(`INFO: Found ${entries.length} screenshots to add.`);
+    logLine(`INFO: Found ${entries.length} screenshots to insert.`);
 
-    // === STEP 3: Add Rows + Images ===
+    // === STEP 3: Add TestCase Rows + Insert Images ===
     let addedCount = 0;
-    const imageWidth = 400;
-    const imageHeight = 280;
+    const imageWidth = 420;  // px
+    const imageHeight = 260; // px
 
     for (const { sno, id, base64 } of entries) {
       if (!id || !base64) continue;
@@ -8983,39 +8984,38 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         continue;
       }
 
-      // Add Test Case Row
-      const row = sheet.addRow([sno, id, "", "", "", "", "", ""]);
-      row.height = 200; // Make row taller to fit image
+      // Add row with TestCaseID
+      const row = sheet.addRow([sno, id, "", "", "", "", "", "", ""]);
+      row.height = 200; // make space for image
 
-      // Decode image data
+      // Decode Base64 → binary
       try {
         const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
         const buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
 
         if (buffer.length < 5000) {
-          logLine(`ERROR: Image buffer too small for ${id}.`);
+          logLine(`ERROR: Invalid image buffer for ${id}.`);
           continue;
         }
 
-        // Add image to workbook
         const imageId = workbook.addImage({ buffer, extension });
 
-        // Insert image in column I (index 9)
-        const rowNumber = row.number;
+        // Insert image at correct cell
+        const rowNum = row.number;
         sheet.addImage(imageId, {
-          tl: { col: 8, row: rowNumber - 1 },
+          tl: { col: 8, row: rowNum - 1 }, // col=8 → column I
           ext: { width: imageWidth, height: imageHeight },
-          editAs: "oneCell"
+          editAs: "oneCell",
         });
 
-        logLine(`INFO: Image added for ${id} (row ${rowNumber}).`);
+        logLine(`INFO: Image added for ${id} (Row ${rowNum}, Col I).`);
         addedCount++;
       } catch (err) {
         logLine(`ERROR: Failed to insert image for ${id}: ${err.message}`);
       }
     }
 
-    // === STEP 4: Download Excel File ===
+    // === STEP 4: Download Excel ===
     const bufferOut = await workbook.xlsx.writeBuffer();
     const blob = new Blob([bufferOut], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -9028,9 +9028,8 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     link.click();
     document.body.removeChild(link);
 
-    logLine(`INFO: Excel report created successfully with ${addedCount} images.`);
+    logLine(`INFO: Excel generated successfully with ${addedCount} images.`);
     showNotification(`Excel generated successfully with ${addedCount} screenshots!`, "success");
-
   } catch (err) {
     logLine(`ERROR: ${err.message}`);
     showNotification("Failed to generate Excel: " + err.message, "error");
@@ -9041,6 +9040,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
