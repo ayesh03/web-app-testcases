@@ -8909,15 +8909,20 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    logLine("Starting Excel report generation process...");
+    logLine("STEP 1️⃣: Starting Excel report generation process...");
 
-    // --- DOWNLOAD BASE FILE FIRST ---
-    logLine("Fetching and downloading default base Excel file...");
+    // --- FETCH BASE FILE ONCE ---
+    logLine("STEP 2️⃣: Fetching base Excel file...");
     const baseResponse = await fetch("DMI-Testcases-Excelsheet.xlsx");
     if (!baseResponse.ok) throw new Error(`Failed to fetch base Excel file: ${baseResponse.status}`);
-    const baseBlob = await baseResponse.blob();
 
-    // Trigger download of the base file
+    // Read once
+    const arrayBuffer = await baseResponse.arrayBuffer();
+    const baseBlob = new Blob([arrayBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+
+    // Download the untouched base file first
     const baseUrl = URL.createObjectURL(baseBlob);
     const baseLink = document.createElement("a");
     baseLink.href = baseUrl;
@@ -8927,14 +8932,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     document.body.removeChild(baseLink);
     URL.revokeObjectURL(baseUrl);
 
-    logLine("Default Excel file downloaded successfully.");
+    logLine("STEP 3️⃣: Default Excel file downloaded successfully.");
 
-    // --- CONTINUE WITH EMBEDDING PROCESS ---
-    const arrayBuffer = await baseResponse.arrayBuffer();
-
+    // --- CONTINUE WITH EXCELJS ---
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
-    logLine("Base Excel file loaded into workbook.");
+    logLine("STEP 4️⃣: Base Excel file loaded into workbook.");
 
     // Select or create worksheet
     const sheetName = "V1.4_DMI_Functional_testcase ";
@@ -8943,7 +8946,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       worksheet = workbook.addWorksheet(sheetName);
       logLine("INFO: Target worksheet not found — created new one.");
     } else {
-      logLine(`Worksheet '${sheetName}' selected.`);
+      logLine(`STEP 5️⃣: Worksheet '${sheetName}' selected.`);
     }
 
     // Parse screenshots
@@ -8960,11 +8963,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     if (entries.length === 0) {
       showNotification("No screenshots found in memory.", "warning");
-      logLine("No screenshot data found in memory.");
+      logLine("⚠️ No screenshot data found in memory.");
       return;
     }
 
-    logLine(`Found ${entries.length} screenshots. Embedding started...`);
+    logLine(`STEP 6️⃣: Found ${entries.length} screenshots. Embedding started...`);
 
     // Ensure Screenshot header exists
     const headerCell = worksheet.getCell("I1");
@@ -8972,9 +8975,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       headerCell.value = "Screenshot-Report";
       headerCell.font = { name: "Arial", bold: true, size: 18, color: { argb: "FF000000" } };
       worksheet.getColumn("I").width = 100;
-      logLine("Screenshot header created and column width set (100).");
+      logLine("STEP 7️⃣: Screenshot header created and column width set (100).");
     } else {
-      logLine("Screenshot header already exists.");
+      logLine("STEP 7️⃣: Screenshot header already exists.");
     }
 
     // Process screenshots
@@ -8983,7 +8986,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       const base64 = entry.base64;
       if (!base64) continue;
 
-      // Find the correct row in Column B
+      // Find row where TestCaseID (col B) matches
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
         const val = row.getCell(2).value;
@@ -8996,39 +8999,37 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         const newRow = worksheet.addRow([]);
         targetRow = newRow.number;
         worksheet.getCell(`B${targetRow}`).value = testCaseId;
-        logLine(`TestCaseID '${testCaseId}' not found. Added new row ${targetRow}.`);
+        logLine(`STEP 8️⃣: TestCaseID '${testCaseId}' not found. Added new row ${targetRow}.`);
       } else {
-        logLine(`Found existing TestCaseID '${testCaseId}' at row ${targetRow}.`);
+        logLine(`STEP 8️⃣: Found existing TestCaseID '${testCaseId}' at row ${targetRow}.`);
       }
 
       try {
-        // Base64 → Buffer → Image
         const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-        const imageId = workbook.addImage({
-          buffer: imageBuffer,
-          extension: "jpeg"
-        });
+        const imageId = workbook.addImage({ buffer: imageBuffer, extension: "jpeg" });
 
+        // Match Qt row and column layout
         worksheet.getRow(targetRow).height = 250;
         worksheet.getColumn("I").width = 100;
 
+        // Insert image into Column I
         worksheet.addImage(imageId, {
-          tl: { col: 8, row: targetRow - 1 }, // Column I index = 8
+          tl: { col: 8, row: targetRow - 1 },
           editAs: "oneCell"
         });
 
-        logLine(`Embedded image for '${testCaseId}' at row ${targetRow} (Col I).`);
+        logLine(`STEP 9️⃣: Embedded image for '${testCaseId}' at row ${targetRow} (Col I).`);
       } catch (err) {
-        logLine(`Failed to embed image for ${testCaseId}: ${err.message}`);
+        logLine(`⚠️ Failed to embed image for ${testCaseId}: ${err.message}`);
       }
     }
 
     // Style header
     worksheet.getRow(1).font = { bold: true, size: 18, name: "Arial" };
     worksheet.getRow(1).alignment = { horizontal: "center" };
-    logLine("Header formatted.");
+    logLine("STEP 🔟: Header formatted.");
 
-    // Save updated Excel with timestamp
+    // Save updated Excel
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const updatedName = `LPOCIP_Test_Report_${timestamp}.xlsx`;
@@ -9039,11 +9040,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, updatedName);
-    logLine("Updated Excel file with screenshots downloaded successfully.");
+    logLine("✅ STEP ✅: Updated Excel file with screenshots downloaded successfully.");
     showNotification("Report generated successfully with screenshots!", "success");
 
   } catch (err) {
-    logLine(`ERROR: ${err.message}`);
+    logLine(`❌ ERROR: ${err.message}`);
     showNotification("Failed to generate Excel report.", "error");
   }
 });
@@ -9052,6 +9053,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
 
 
