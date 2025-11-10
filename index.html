@@ -8908,12 +8908,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
   try {
     const fileInput = document.getElementById("excelFileInput");
     if (!fileInput.files.length) {
-      alert("Please select your Excel file first.");
+      showNotification("Please select your Excel file first.", "warning");
       return;
     }
 
     if (!screenshotLogData || screenshotLogData.trim() === "") {
-      alert("No screenshot data found!");
+      showNotification("No screenshot data found!", "warning");
       return;
     }
 
@@ -8922,10 +8922,13 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
+
     const sheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
     if (!sheet) throw new Error("Worksheet not found.");
 
-    // Parse screenshot entries
+    logLine("INFO: Excel file loaded successfully.");
+    
+    // Parse screenshot log entries
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8935,14 +8938,33 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         return { id: idPart.trim(), base64 };
       });
 
-    let added = 0;
-    const targetCol = 9;
-    const imageWidth = 300;
-    const imageHeight = 280;
+    if (entries.length === 0) {
+      logLine("WARNING: No screenshots found in log data.");
+      showNotification("No screenshots found.", "warning");
+      return;
+    }
+
+    const imageWidth = 400;  // px
+    const imageHeight = 280; // px
+    const targetCol = 9;     // Column I
+    let addedCount = 0;
 
     for (const { id, base64 } of entries) {
-      if (!id || !base64.startsWith("/9j/")) continue;
+      if (!id || !base64) {
+        logLine(`WARNING: Invalid entry skipped.`);
+        continue;
+      }
 
+      // Detect format
+      let extension = "jpeg";
+      if (base64.startsWith("iVBORw0KGgo")) extension = "png";
+      else if (base64.startsWith("/9j/")) extension = "jpeg";
+      else {
+        logLine(`WARNING: Unknown image format for ${id} — skipped.`);
+        continue;
+      }
+
+      // Find Excel row for this TestCaseID (column B)
       let targetRow = null;
       sheet.eachRow((row, rowNum) => {
         const val = row.getCell(2).value;
@@ -8950,43 +8972,66 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
           targetRow = rowNum;
         }
       });
-      if (!targetRow) continue;
+      if (!targetRow) {
+        logLine(`WARNING: TestCaseID '${id}' not found in Excel.`);
+        continue;
+      }
 
-      const buffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      const imgId = workbook.addImage({ buffer, extension: "jpeg" });
+      // Decode Base64 to binary
+      let buffer;
+      try {
+        const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
+        buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
+      } catch (err) {
+        logLine(`ERROR: Failed to decode Base64 for ${id}: ${err.message}`);
+        continue;
+      }
 
-      sheet.addImage(imgId, {
-        tl: { col: targetCol - 1, row: targetRow - 1 },
-        ext: { width: imageWidth, height: imageHeight }
-      });
+      if (!buffer || buffer.length < 100) {
+        logLine(`ERROR: Invalid image data for ${id} (buffer too small).`);
+        continue;
+      }
 
-      added++;
-      logLine("Added image");
-      console.log(` Added image for ${id} at row ${targetRow}`);
+      // Add image
+      try {
+        const imageId = workbook.addImage({ buffer, extension });
+
+        sheet.addImage(imageId, {
+          tl: { col: targetCol - 1, row: targetRow - 1 },
+          ext: { width: imageWidth, height: imageHeight },
+        });
+
+        addedCount++;
+        logLine(`INFO: Image added for ${id} at row ${targetRow}, format ${extension}, size ${buffer.length} bytes.`);
+      } catch (err) {
+        logLine(`ERROR: Failed to insert image for ${id}: ${err.message}`);
+      }
     }
 
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    // Write file
+    const bufferOut = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([bufferOut], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = file.name; // same filename → looks like overwrite
+    link.download = file.name; // same name → looks like overwrite
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    alert(`${added} images added successfully!`);
+    logLine(`INFO: ${addedCount} images added successfully!`);
+    showNotification(`${addedCount} screenshots added successfully!`, "success");
   } catch (err) {
-    console.error(err);
-    alert("Error: " + err.message);
+    logLine(`ERROR: ${err.message}`);
+    showNotification("Failed to add images: " + err.message, "error");
   }
 });
-
 
   </script>
 
 </body>
 </html>
+
 
