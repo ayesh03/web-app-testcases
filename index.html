@@ -8905,7 +8905,6 @@ function formatTestCasePacketWithModes(testCaseId, modesOperation) {
         logLine(`ERROR downloading log file: ${error.message}`);
       }
     }
-
 document.getElementById("generateReportBtn").addEventListener("click", async () => {
   try {
     if (!screenshotLogData || screenshotLogData.trim() === "") {
@@ -8913,14 +8912,15 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
+    // Fetch the original Excel file
     const response = await fetch("./DMI-Testcases-Excelsheet.xlsx", { cache: "no-store" });
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
 
-    // Load workbook
+    // Load workbook using xlsx-populate
     const workbook = await XlsxPopulate.fromDataAsync(arrayBuffer);
     const sheet = workbook.sheet("V1.4_DMI_Functional_testcase ");
-    if (!sheet) throw new Error("Worksheet not found.");
+    if (!sheet) throw new Error("Worksheet 'V1.4_DMI_Functional_testcase ' not found.");
 
     // Parse screenshot log data
     const entries = screenshotLogData
@@ -8929,6 +8929,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       .map(block => {
         const [idPart, ...dataParts] = block.trim().split("\n");
         const base64 = dataParts.join("").replace(/-+$/, "").trim();
+        logLine(`DEBUG: Found entry for ${idPart.trim()} (Base64 length: ${base64.length})`);
         return {
           id: idPart.trim(),
           base64
@@ -8939,28 +8940,34 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     for (const entry of entries) {
       const { id, base64 } = entry;
-      if (!id || !base64.startsWith("/9j/")) continue; // ensure it's valid JPEG
+      if (!id) continue;
 
-      // Find matching TestCaseID in column B
+      // Check if valid image
+      if (!base64 || !base64.startsWith("/9j/")) {
+        logLine(`⚠️ Skipping ${id} — invalid or empty Base64 (len ${base64.length}).`);
+        continue;
+      }
+
+      // Find matching TestCaseID in column B (case-insensitive, trimmed)
       const usedRange = sheet.usedRange();
       const values = usedRange.value();
       let targetRow = null;
 
       for (let r = 0; r < values.length; r++) {
-        const cellVal = values[r][1]; // column B (index 1)
-        if (cellVal && cellVal.toString().trim() === id) {
-          targetRow = r + 1; // 1-based
+        const cellVal = values[r][1]; // column B = index 1
+        if (cellVal && cellVal.toString().trim().toUpperCase() === id.toUpperCase()) {
+          targetRow = r + 1; // 1-based row
           break;
         }
       }
 
       if (!targetRow) {
-        logLine(`TestCaseID '${id}' not found in Excel — skipping.`);
+        logLine(`❌ TestCaseID '${id}' not found in Excel — check spacing or case.`);
         continue;
       }
 
       try {
-        // Directly insert base64 image
+        // Add the image at column I (col 9)
         sheet.addImage(`data:image/jpeg;base64,${base64}`, {
           name: id,
           type: "image/jpeg",
@@ -8972,13 +8979,13 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         });
 
         addedCount++;
-        logLine(`✅ Image added successfully for TestCaseID '${id}' at row ${targetRow}, column I.`);
+        logLine(`✅ Image added for '${id}' at row ${targetRow}, column I.`);
       } catch (err) {
         logLine(`❌ Failed to add image for ${id}: ${err.message}`);
       }
     }
 
-    // Download modified file
+    // Export updated workbook
     const output = await workbook.outputAsync();
     const blob = new Blob([output], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -9001,14 +9008,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
   }
 });
 
+
+
   </script>
 
 </body>
 </html>
-
-
-
-
-
-
-
