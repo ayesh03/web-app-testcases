@@ -1933,7 +1933,8 @@
               <button id="clearButton" class="btn btn-clear" title="Clear Results">
                 <i class="fa-solid fa-eraser"></i> Clear Results
               </button>
-              <button id="generateReportBtn" class="btn btn-connect" disabled>Generate Report</button>
+              <input type="file" id="excelFileInput" accept=".xlsx" />
+              <button id="generateReportBtn" class="btn btn-connect" disabled>Add Screenshots & Download</button>
 
 
               <div class="checkbox-row">
@@ -8908,26 +8909,27 @@ function formatTestCasePacketWithModes(testCaseId, modesOperation) {
     }
 document.getElementById("generateReportBtn").addEventListener("click", async () => {
   try {
+    const fileInput = document.getElementById("excelFileInput");
+    if (!fileInput.files.length) {
+      showNotification("Please select your Excel file first.", "warning");
+      return;
+    }
+
     if (!screenshotLogData || screenshotLogData.trim() === "") {
       showNotification("No screenshot data available. Run tests first.", "warning");
       return;
     }
 
-    logLine("Starting Excel report generation...");
-
-    // Load the original Excel
-    const response = await fetch("./DMI-Testcases-Excelsheet.xlsx", { cache: "no-store" });
-    if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
-    const arrayBuffer = await response.arrayBuffer();
-
+    const file = fileInput.files[0];
+    const arrayBuffer = await file.arrayBuffer();
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
     const sheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
-    if (!sheet) throw new Error("Worksheet 'V1.4_DMI_Functional_testcase ' not found.");
+    if (!sheet) throw new Error("Worksheet not found.");
 
-    logLine("Excel file loaded successfully.");
+    logLine(`Excel file '${file.name}' loaded successfully.`);
 
-    // Parse the screenshot log data
+    // Parse screenshot log data
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8938,53 +8940,42 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       });
 
     let addedCount = 0;
+    const imageWidth = 180;
+    const imageHeight = 120;
 
     for (const entry of entries) {
       const { id, base64 } = entry;
-      if (!id || !base64.startsWith("/9j/")) {
-        logLine(`⚠️ Skipping ${id} — invalid or empty Base64.`);
-        continue;
-      }
+      if (!id || !base64.startsWith("/9j/")) continue;
 
-      // Find matching TestCaseID in column B
       let targetRow = null;
       sheet.eachRow((row, rowNumber) => {
-        const cellVal = row.getCell(2).value; // column B
-        if (cellVal && cellVal.toString().trim().toUpperCase() === id.toUpperCase()) {
+        const val = row.getCell(2).value;
+        if (val && val.toString().trim().toUpperCase() === id.toUpperCase()) {
           targetRow = rowNumber;
         }
       });
 
       if (!targetRow) {
-        logLine(`❌ TestCaseID '${id}' not found in Excel.`);
+        logLine(` TestCaseID '${id}' not found in Excel.`);
         continue;
       }
 
-      // Convert Base64 to buffer
       const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-
-      // Add image to workbook
       const imageId = workbook.addImage({
         buffer: imageBuffer,
         extension: "jpeg",
       });
 
-      // Configure fixed image size & position (adjust as needed)
-      const imageWidth = 180;  // in pixels
-      const imageHeight = 120; // in pixels
-      const colIndex = 9; // column I
-
       sheet.addImage(imageId, {
-        tl: { col: colIndex - 1, row: targetRow - 1 }, // top-left corner
-        ext: { width: imageWidth, height: imageHeight }, // fixed size
-        editAs: "oneCell"
+        tl: { col: 8, row: targetRow - 1 }, // column I (index 8)
+        ext: { width: imageWidth, height: imageHeight },
+        editAs: "oneCell",
       });
 
       addedCount++;
-      logLine(`✅ Image added for '${id}' at row ${targetRow}, column I.`);
+      logLine(` Image added for '${id}' at row ${targetRow}, column I.`);
     }
 
-    // Save and download updated file
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -8992,13 +8983,12 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "DMI-Testcases-Excelsheet.xlsx";
+    link.download = `Updated_${file.name}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
 
-    logLine(`INFO: Excel updated with ${addedCount} screenshots successfully!`);
+    logLine(`INFO: ${addedCount} screenshots added successfully!`);
     showNotification(`${addedCount} images added successfully!`, "success");
 
   } catch (err) {
@@ -9010,4 +9000,5 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
