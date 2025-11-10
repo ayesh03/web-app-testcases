@@ -8917,10 +8917,24 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
+
     const sheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
     if (!sheet) throw new Error("Worksheet not found.");
-
     logLine("INFO: Excel file loaded successfully.");
+
+    // 🟩 Set column widths to 35
+    for (let i = 1; i <= 9; i++) {
+      sheet.getColumn(i).width = 35;
+    }
+
+    // 🟨 Add header for screenshot image (if not already there)
+    const headerCell = sheet.getCell("I1");
+    if (!headerCell.value || headerCell.value.toString().trim() === "") {
+      headerCell.value = "Screenshot Image";
+      headerCell.font = { bold: true };
+      headerCell.alignment = { horizontal: "center", vertical: "middle" };
+      logLine("INFO: Added header 'Screenshot Image' in column I.");
+    }
 
     // Parse screenshot entries
     const entries = screenshotLogData
@@ -8932,14 +8946,14 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         return { id: idPart.trim(), base64 };
       });
 
-    const imageWidth = 40;
-    const imageHeight = 20;
-    const targetCol = 2;
+    const imageWidth = 400;
+    const imageHeight = 280;
+    const targetCol = 9; // Column I
     let addedCount = 0;
 
     for (const { id, base64 } of entries) {
       if (!id || !base64) {
-        logLine(`WARNING: Invalid entry skipped.`);
+        logLine(`WARNING: Skipping invalid screenshot entry.`);
         continue;
       }
 
@@ -8948,11 +8962,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       if (base64.startsWith("iVBORw0KGgo")) extension = "png";
       else if (base64.startsWith("/9j/")) extension = "jpeg";
       else {
-        logLine(`WARNING: Unknown image format for ${id} — skipped.`);
+        logLine(`WARNING: Unknown image format for ${id}. Skipped.`);
         continue;
       }
 
-      // Find TestCaseID row (column B)
+      // Find row where TestCaseID matches column B
       let targetRow = null;
       sheet.eachRow((row, rowNum) => {
         const val = row.getCell(2).value;
@@ -8966,52 +8980,40 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         continue;
       }
 
-      // Decode image
+      // Decode Base64 to binary
       const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
       const buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
       if (!buffer || buffer.length < 100) {
-        logLine(`ERROR: Invalid Base64 for ${id}.`);
+        logLine(`ERROR: Invalid image data for ${id}.`);
         continue;
       }
 
-      // Add image into Excel
-      const imageId = workbook.addImage({ buffer, extension });
-      sheet.addImage(imageId, {
-        tl: { col: targetCol - 1, row: targetRow-1},
-        ext: { width: imageWidth, height: imageHeight }
-      });
-
-      logLine(`INFO: Image added for ${id} at row ${targetRow}, format ${extension}, size ${buffer.length} bytes.`);
-      addedCount++;
-
-      // Also download image separately
+      // Add image
       try {
-        const imageBlob = new Blob([buffer], { type: `image/${extension}` });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(imageBlob);
-        link.download = `${id}.${extension}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-        logLine(`INFO: Screenshot image for ${id} downloaded successfully.`);
+        const imageId = workbook.addImage({ buffer, extension });
+        sheet.addImage(imageId, {
+          tl: { col: targetCol - 1, row: targetRow - 1 },
+          ext: { width: imageWidth, height: imageHeight },
+        });
+        addedCount++;
+        logLine(`INFO: Image added for ${id} at row ${targetRow}, Column I, size ${buffer.length} bytes.`);
       } catch (err) {
-        logLine(`ERROR: Failed to download image for ${id}: ${err.message}`);
+        logLine(`ERROR: Failed to add image for ${id}: ${err.message}`);
       }
     }
 
-    // Save Excel with images
+    // Save updated Excel file
     const bufferOut = await workbook.xlsx.writeBuffer();
     const blob = new Blob([bufferOut], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
 
-    const excelLink = document.createElement("a");
-    excelLink.href = URL.createObjectURL(blob);
-    excelLink.download = "Updated_DMI-Testcases-Excelsheet.xlsx";
-    document.body.appendChild(excelLink);
-    excelLink.click();
-    document.body.removeChild(excelLink);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Updated_DMI-Testcases-Excelsheet.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
     logLine(`INFO: ${addedCount} images added successfully!`);
     showNotification(`${addedCount} images added successfully!`, "success");
@@ -9026,3 +9028,4 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
