@@ -8902,7 +8902,6 @@ function formatTestCasePacketWithModes(testCaseId, modesOperation) {
         logLine(`ERROR downloading log file: ${error.message}`);
       }
     }
-
 document.getElementById("generateReportBtn").addEventListener("click", async () => {
   try {
     if (!screenshotLogData || screenshotLogData.trim() === "") {
@@ -8910,9 +8909,9 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       return;
     }
 
-    logLine("Testing Excel writing (text only, column J)...");
+    logLine("Generating Excel report (text + small image test)...");
 
-    // Load base Excel file (ensure same directory)
+    // Load the base Excel file from same deployed folder
     const response = await fetch("DMI-Testcases-Excelsheet.xlsx");
     if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
@@ -8922,66 +8921,97 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
     const sheetName = "V1.4_DMI_Functional_testcase ";
     let worksheet = workbook.getWorksheet(sheetName);
-    if (!worksheet) {
-      worksheet = workbook.addWorksheet(sheetName);
-      logLine("⚠️ Created new sheet (original not found).");
-    } else {
-      logLine("✅ Sheet loaded successfully.");
-    }
+    if (!worksheet) worksheet = workbook.addWorksheet(sheetName);
 
-    // Parse test entries
+    // Parse screenshot entries
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
       .map(block => {
-        const [idPart] = block.trim().split("\n");
-        return idPart.trim();
+        const [idPart, ...dataParts] = block.trim().split("\n");
+        return {
+          id: idPart.trim(),
+          base64: dataParts.join("").replace(/-+$/, "").trim()
+        };
       });
 
     if (entries.length === 0) {
-      showNotification("No test case IDs found.", "warning");
+      showNotification("No screenshots found in memory.", "warning");
       return;
     }
 
-    logLine(`Found ${entries.length} test cases, writing text placeholders...`);
+    logLine(`Found ${entries.length} test cases. Writing text and small images...`);
 
-    // Write header if needed
-    const headerCell = worksheet.getCell("J1");
-    if (!headerCell.value) {
-      headerCell.value = "Screenshot";
-      headerCell.font = { name: "Arial", bold: true, size: 14 };
-      worksheet.getColumn("J").width = 45;
+    // Add headers if not present
+    if (!worksheet.getCell("J1").value) {
+      worksheet.getCell("J1").value = "Screenshot Text";
+      worksheet.getCell("J1").font = { name: "Arial", bold: true, size: 14 };
+      worksheet.getColumn("J").width = 40;
     }
 
-    // Write to each test case row in column J
-    for (const testCaseId of entries) {
+    if (!worksheet.getCell("K1").value) {
+      worksheet.getCell("K1").value = "Screenshot Image";
+      worksheet.getCell("K1").font = { name: "Arial", bold: true, size: 14 };
+      worksheet.getColumn("K").width = 25;
+    }
+
+    // Iterate through entries
+    for (const entry of entries) {
+      const testCaseId = entry.id;
+      const base64 = entry.base64;
+      if (!base64) continue;
+
+      // Find correct row (Column B = TestCaseID)
       let targetRow = null;
       worksheet.eachRow((row, rowNumber) => {
-        const val = row.getCell(2).value; // Column B = TestCase ID
+        const val = row.getCell(2).value;
         if (val && val.toString().trim() === testCaseId) {
           targetRow = rowNumber;
         }
       });
 
+      // If not found, create new row
       if (!targetRow) {
         const newRow = worksheet.addRow([]);
         targetRow = newRow.number;
         worksheet.getCell(`B${targetRow}`).value = testCaseId;
       }
 
-      // Write text in column J (this is where image would go later)
-      const cell = worksheet.getCell(`J${targetRow}`);
-      cell.value = `✅ Written OK for ${testCaseId}`;
-      cell.alignment = { wrapText: true, vertical: "middle" };
-      cell.font = { name: "Arial", size: 11 };
+      // Step 1: Write text in Column J
+      const textCell = worksheet.getCell(`J${targetRow}`);
+      textCell.value = `Screenshot stored for ${testCaseId}`;
+      textCell.alignment = { wrapText: true, vertical: "middle" };
+      textCell.font = { name: "Arial", size: 11 };
 
-      logLine(`Wrote to row ${targetRow} for ${testCaseId}`);
+      // Step 2: Add small image in Column K
+      try {
+        const imageBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        const imageId = workbook.addImage({
+          buffer: imageBuffer,
+          extension: "jpeg"
+        });
+
+        // Keep the image small (e.g., 100x60)
+        worksheet.addImage(imageId, {
+          tl: { col: 10, row: targetRow - 1 }, // Column K (0-based index 10)
+          ext: { width: 80, height: 60 },
+          editAs: "oneCell"
+        });
+
+        logLine(` Embedded image for ${testCaseId} at row ${targetRow} (Column K).`);
+      } catch (err) {
+        logLine(` Failed to embed image for ${testCaseId}: ${err.message}`);
+      }
     }
 
-    // Save Excel file
+    // Style headers
+    worksheet.getRow(1).font = { bold: true, size: 14, name: "Arial" };
+    worksheet.getRow(1).alignment = { horizontal: "center" };
+
+    // Save Excel
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `LPOCIP_Test_Report_TEXTONLY_${timestamp}.xlsx`;
+    const fileName = `LPOCIP_Test_Report_IMG_TEXT_${timestamp}.xlsx`;
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
@@ -8989,25 +9019,18 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     });
 
     saveAs(blob, fileName);
-    logLine("✅ Excel report generated successfully (text only).");
-    showNotification("Excel report generated successfully (text only test)!", "success");
+    logLine(" Excel report generated successfully with text + image.");
+    showNotification("Excel report generated successfully (text + small image)!", "success");
 
   } catch (err) {
-    logLine(`❌ Error generating Excel report: ${err.message}`);
+    logLine(` Error generating Excel report: ${err.message}`);
     showNotification("Failed to generate Excel report.", "error");
   }
 });
+
+
 
   </script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
