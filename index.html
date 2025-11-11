@@ -8911,34 +8911,33 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     }
 
     logLine("INFO: Starting Excel report generation...");
-    const response = await fetch("DMI-Testcases-Excelsheet.xlsx", { cache: "no-store" });
-    if (!response.ok) throw new Error(`Failed to fetch Excel file: ${response.status}`);
+
+    // 🧩 Fetch your existing Excel file
+    const response = await fetch("./DMI-Testcases-Excelsheet.xlsx", { cache: "no-store" });
+    if (!response.ok) throw new Error("Failed to load Excel file");
     const arrayBuffer = await response.arrayBuffer();
 
+    // 🧠 Load workbook
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
 
-    // ✅ Keep the original sheet untouched
-    const originalSheetName = "V1.4_DMI_Functional_testcase ";
-    const originalSheet = workbook.getWorksheet(originalSheetName);
-    if (!originalSheet) throw new Error("Worksheet not found.");
+    const sheetName = "V1.4_DMI_Functional_testcase ";
+    const sheet = workbook.getWorksheet(sheetName);
+    if (!sheet) throw new Error(`Worksheet '${sheetName}' not found`);
 
-    // 🆕 Create (or clear existing) Screenshots_Report sheet
-    let reportSheet = workbook.getWorksheet("Screenshots_Report");
-    if (reportSheet) {
-      workbook.removeWorksheet(reportSheet.id);
+    // 🟩 Set specific column widths (A–I)
+    const columnWidths = [10, 35, 45, 45, 35, 45, 40, 45, 40];
+    columnWidths.forEach((w, i) => (sheet.getColumn(i + 1).width = w));
+
+    // 🟩 Ensure Screenshot Image header in column I
+    const headerCell = sheet.getCell("I1");
+    if (!headerCell.value || headerCell.value.toString().trim() === "") {
+      headerCell.value = "Screenshot Image";
+      headerCell.font = { bold: true };
+      headerCell.alignment = { horizontal: "center", vertical: "middle" };
     }
-    reportSheet = workbook.addWorksheet("Screenshots_Report");
 
-    // Set up header
-    reportSheet.getCell("A1").value = "Test Case ID";
-    reportSheet.getCell("B1").value = "Screenshot Image";
-    reportSheet.getRow(1).font = { bold: true };
-    reportSheet.getRow(1).alignment = { horizontal: "center" };
-    reportSheet.getColumn(1).width = 25;
-    reportSheet.getColumn(2).width = 50;
-
-    // 🖼 Parse screenshot entries
+    // 🧩 Parse screenshots from log
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8946,65 +8945,59 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         const [idPart, ...dataParts] = block.trim().split("\n");
         const base64 = dataParts.join("").replace(/-+$/, "").trim();
         return { id: idPart.trim(), base64 };
-      });
+      })
+      .filter(e => e.id && e.base64);
 
     let addedCount = 0;
-    let rowIndex = 2;
-    const imageWidth = 250;
-    const imageHeight = 180;
 
+    // 🧠 Build TestCaseID → row map (column B)
+    const idToRow = {};
+    sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      const val = row.getCell(2).value;
+      if (val) idToRow[val.toString().trim().toUpperCase()] = rowNumber;
+    });
+
+    // 🖼️ Insert screenshots dynamically
     for (const { id, base64 } of entries) {
-      if (!id || !base64) {
-        logLine(`WARNING: Skipping invalid screenshot entry.`);
-        continue;
-      }
+      const key = id.trim().toUpperCase();
+      const targetRow = idToRow[key];
+      if (!targetRow) continue;
 
-      // Detect image type
+      // Detect image format
       let extension = "jpeg";
       if (base64.startsWith("iVBORw0KGgo")) extension = "png";
       else if (base64.startsWith("/9j/")) extension = "jpeg";
-      else {
-        logLine(`WARNING: Unknown image format for ${id}. Skipped.`);
-        continue;
-      }
 
-      // Decode Base64 to binary
-      const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
+      // Decode base64 to binary
+      const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "").replace(/\s/g, "");
       const buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
-      if (!buffer || buffer.length < 100) {
-        logLine(`ERROR: Invalid image data for ${id}.`);
-        continue;
-      }
+      if (!buffer || buffer.length < 100) continue;
 
-      // Insert Test Case ID
-      const cell = reportSheet.getCell(`A${rowIndex}`);
-      cell.value = id;
-      cell.alignment = { vertical: "middle", horizontal: "center" };
-      cell.border = {
-        top: { style: "thin" },
-        bottom: { style: "thin" },
-        left: { style: "thin" },
-        right: { style: "thin" },
-      };
+      const imageId = workbook.addImage({ buffer, extension });
 
-      // Add image in column B
-      try {
-        const imageId = workbook.addImage({ buffer, extension });
-        reportSheet.addImage(imageId, {
-          tl: { col: 1, row: rowIndex - 1 }, // Column B (index 1)
-          ext: { width: imageWidth, height: imageHeight },
-        });
-        addedCount++;
-        logLine(`INFO: Image added for ${id} at row ${rowIndex}.`);
-      } catch (err) {
-        logLine(`ERROR: Failed to add image for ${id}: ${err.message}`);
-      }
+      // Dynamic sizing and row height adjustment
+      const colWidth = sheet.getColumn(9).width || 40;
+      const baseImageWidth = colWidth * 7.5;
+      const aspectRatio = 4 / 3; // approx
+      const dynamicHeightPx = baseImageWidth / aspectRatio;
+      const excelRowHeight = Math.max(45, Math.min(dynamicHeightPx / 0.75, 120));
 
-      // Add some space between images
-      rowIndex += 8;
+      const row = sheet.getRow(targetRow);
+      row.height = excelRowHeight;
+      row.commit();
+
+      const heightPx = row.height * 0.75;
+
+      // Add image exactly in its cell box
+      sheet.addImage(imageId, {
+        tl: { col: 8, row: targetRow - 1 }, // Column I = 8 (zero-based)
+        ext: { width: baseImageWidth, height: heightPx },
+      });
+
+      addedCount++;
     }
 
-    // ✅ Export new workbook
+    // 🧾 Save & download updated Excel
     const bufferOut = await workbook.xlsx.writeBuffer();
     const blob = new Blob([bufferOut], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -9017,17 +9010,20 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     link.click();
     document.body.removeChild(link);
 
-    logLine(`INFO: ${addedCount} screenshots added successfully!`);
+    logLine(`INFO: ${addedCount} screenshots added successfully.`);
     showNotification(`${addedCount} screenshots added successfully!`, "success");
+
   } catch (err) {
     logLine(`ERROR: ${err.message}`);
-    showNotification("Failed to generate Excel report.", "error");
+    showNotification("Failed to generate report.", "error");
   }
 });
+
 
   </script>
 
 </body>
 </html>
+
 
 
