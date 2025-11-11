@@ -8918,25 +8918,27 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
 
-    const sheet = workbook.getWorksheet("V1.4_DMI_Functional_testcase ");
-    if (!sheet) throw new Error("Worksheet not found.");
-    logLine("INFO: Excel file loaded successfully.");
+    // ✅ Keep the original sheet untouched
+    const originalSheetName = "V1.4_DMI_Functional_testcase ";
+    const originalSheet = workbook.getWorksheet(originalSheetName);
+    if (!originalSheet) throw new Error("Worksheet not found.");
 
-    // 🟩 Set column widths to 35
-    for (let i = 1; i <= 9; i++) {
-      sheet.getColumn(i).width = 35;
+    // 🆕 Create (or clear existing) Screenshots_Report sheet
+    let reportSheet = workbook.getWorksheet("Screenshots_Report");
+    if (reportSheet) {
+      workbook.removeWorksheet(reportSheet.id);
     }
+    reportSheet = workbook.addWorksheet("Screenshots_Report");
 
-    // 🟨 Add header for screenshot image (if not already there)
-    const headerCell = sheet.getCell("I1");
-    if (!headerCell.value || headerCell.value.toString().trim() === "") {
-      headerCell.value = "Screenshot Image";
-      headerCell.font = { bold: true };
-      headerCell.alignment = { horizontal: "center", vertical: "middle" };
-      logLine("INFO: Added header 'Screenshot Image' in column I.");
-    }
+    // Set up header
+    reportSheet.getCell("A1").value = "Test Case ID";
+    reportSheet.getCell("B1").value = "Screenshot Image";
+    reportSheet.getRow(1).font = { bold: true };
+    reportSheet.getRow(1).alignment = { horizontal: "center" };
+    reportSheet.getColumn(1).width = 25;
+    reportSheet.getColumn(2).width = 50;
 
-    // Parse screenshot entries
+    // 🖼 Parse screenshot entries
     const entries = screenshotLogData
       .split(/TestCaseID:/)
       .slice(1)
@@ -8946,10 +8948,10 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         return { id: idPart.trim(), base64 };
       });
 
-    const imageWidth = 400;
-    const imageHeight = 280;
-    const targetCol = 9; // Column I
     let addedCount = 0;
+    let rowIndex = 2;
+    const imageWidth = 250;
+    const imageHeight = 180;
 
     for (const { id, base64 } of entries) {
       if (!id || !base64) {
@@ -8966,20 +8968,6 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         continue;
       }
 
-      // Find row where TestCaseID matches column B
-      let targetRow = null;
-      sheet.eachRow((row, rowNum) => {
-        const val = row.getCell(2).value;
-        if (val && val.toString().trim().toUpperCase() === id.toUpperCase()) {
-          targetRow = rowNum;
-        }
-      });
-
-      if (!targetRow) {
-        logLine(`WARNING: TestCaseID '${id}' not found in Excel.`);
-        continue;
-      }
-
       // Decode Base64 to binary
       const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
       const buffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
@@ -8988,21 +8976,35 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
         continue;
       }
 
-      // Add image
+      // Insert Test Case ID
+      const cell = reportSheet.getCell(`A${rowIndex}`);
+      cell.value = id;
+      cell.alignment = { vertical: "middle", horizontal: "center" };
+      cell.border = {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      };
+
+      // Add image in column B
       try {
         const imageId = workbook.addImage({ buffer, extension });
-        sheet.addImage(imageId, {
-          tl: { col: targetCol - 1, row: targetRow - 1 },
+        reportSheet.addImage(imageId, {
+          tl: { col: 1, row: rowIndex - 1 }, // Column B (index 1)
           ext: { width: imageWidth, height: imageHeight },
         });
         addedCount++;
-        logLine(`INFO: Image added for ${id} at row ${targetRow}, Column I, size ${buffer.length} bytes.`);
+        logLine(`INFO: Image added for ${id} at row ${rowIndex}.`);
       } catch (err) {
         logLine(`ERROR: Failed to add image for ${id}: ${err.message}`);
       }
+
+      // Add some space between images
+      rowIndex += 8;
     }
 
-    // Save updated Excel file
+    // ✅ Export new workbook
     const bufferOut = await workbook.xlsx.writeBuffer();
     const blob = new Blob([bufferOut], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -9015,9 +9017,8 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     link.click();
     document.body.removeChild(link);
 
-    logLine(`INFO: ${addedCount} images added successfully!`);
-    showNotification(`${addedCount} images added successfully!`, "success");
-
+    logLine(`INFO: ${addedCount} screenshots added successfully!`);
+    showNotification(`${addedCount} screenshots added successfully!`, "success");
   } catch (err) {
     logLine(`ERROR: ${err.message}`);
     showNotification("Failed to generate Excel report.", "error");
@@ -9028,4 +9029,5 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
 
 </body>
 </html>
+
 
