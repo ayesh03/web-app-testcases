@@ -8997,7 +8997,7 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
       addedCount++;
     }
 
-    // 🧾 Save & download updated Excel
+    //  Save & download updated Excel
     const bufferOut = await workbook.xlsx.writeBuffer();
     const blob = new Blob([bufferOut], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -9018,12 +9018,11 @@ document.getElementById("generateReportBtn").addEventListener("click", async () 
     showNotification("Failed to generate report.", "error");
   }
 });
-
-
   </script>
 
 </body>
 </html>
+
 
 
 
